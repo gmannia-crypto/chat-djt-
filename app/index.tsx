@@ -80,6 +80,8 @@ import {
   type MysteryTeaserPalette,
 } from "@/lib/persona-unlocks";
 import { CashAppDonate } from "@/components/CashAppDonate";
+import { ProposedHomeEntry } from "@/components/home/ProposedHomeEntry";
+import { ArenaSetupBackdrop } from "@/components/arena-setup/ArenaSetupBackdrop";
 
 const FEEDBACK_SHOWN_KEY = "chatdjt_feedback_shown";
 const FEEDBACK_CONV_COUNT_KEY = "chatdjt_conv_count";
@@ -1569,6 +1571,7 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + webTopInset }]}>
+      <ArenaSetupBackdrop />
       <LinearGradient
         colors={["rgba(10, 10, 10, 0.15)", "rgba(10, 10, 10, 0.0)", "rgba(10, 10, 10, 0.25)"]}
         style={styles.backgroundOverlay}
@@ -1664,150 +1667,34 @@ export default function HomeScreen() {
         bounces={true}
         decelerationRate="normal"
       >
-        <Animated.View entering={FadeInDown.delay(200).duration(600)} style={arenaFeaturedStyle}>
-          <Pressable
-            onPress={() => {
+        <View style={{ width: "100%" }}>
+          <ProposedHomeEntry
+            onSetup={() => {
               playNavVoice("The Arena. Where minds clash and reputations are made.");
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               router.push("/arena");
             }}
-            style={({ pressed }) => [pressed && { opacity: 0.9 }]}
-            testID="arena-featured-button"
-          >
-            <LinearGradient
-              colors={["#2a0a0a", "#1a0505", "#2a0a0a"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.arenaFeaturedCard}
-            >
-              <View style={styles.arenaFeaturedBorderGlow} />
-              <View style={styles.arenaFeaturedHeader}>
-                <View style={styles.arenaFeaturedLive}>
-                  <View style={styles.arenaFeaturedLiveDot} />
-                  <Text style={styles.arenaFeaturedLiveText}>LIVE</Text>
-                </View>
-                <Text style={styles.arenaFeaturedTitle}>THE ARENA</Text>
-                <Text style={styles.arenaFeaturedSubtitle}>28 AI Personas. Real News. Live Debate.</Text>
-              </View>
-              <View style={styles.arenaFeaturedPersonas}>
-                <Text style={styles.arenaFeaturedEmojis}>Trump  Biden  Maddow  Ruckus  Omar  Galloway</Text>
-              </View>
-              <View style={styles.arenaFeaturedCta}>
-                <LinearGradient
-                  colors={["#ff4d4d", "#cc0000"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.arenaFeaturedCtaGradient}
-                >
-                  <Ionicons name="megaphone" size={14} color="#fff" />
-                  <Text style={styles.arenaFeaturedCtaText}>TRY IT NOW FOR FREE</Text>
-                </LinearGradient>
-              </View>
-              <Pressable
-                onPress={(e) => {
-                  e.stopPropagation();
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  router.push("/interview");
-                }}
-                style={({ pressed }) => [{
-                  marginTop: 10,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
-                  borderRadius: 12,
-                  backgroundColor: "rgba(255,215,0,0.12)",
-                  borderWidth: 1,
-                  borderColor: "#FFD700",
-                  opacity: pressed ? 0.8 : 1,
-                }]}
-                testID="home-interview-shortcut"
-              >
-                <Ionicons name="mic" size={14} color="#FFD700" />
-                <Text style={{ color: "#FFD700", fontSize: 12, fontWeight: "900", letterSpacing: 1 }}>NEW · 1-ON-1 INTERVIEWS</Text>
-                <Ionicons name="chevron-forward" size={14} color="#FFD700" />
-              </Pressable>
-            </LinearGradient>
-          </Pressable>
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(300).duration(600)} style={styles.viralCtaRow}>
-          <Animated.View style={pulseTherapyStyle}>
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                playNavVoice("Trump Therapy. Confront your issues with the man himself.");
-                router.push("/therapy");
-              }}
-              style={({ pressed }) => [styles.viralCtaButton, styles.viralTherapy, pressed && { opacity: 0.85 }]}
-              testID="viral-therapy-btn"
-            >
-              <LinearGradient
-                colors={["#00C853", "#00E676", "#69F0AE"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.viralCtaGradient}
-              >
-                <MaterialCommunityIcons name="brain" size={22} color="#fff" />
-                <Text style={styles.viralCtaText}>TRUMP THERAPY</Text>
-                <View style={styles.viralCtaBadge}>
-                  <Text style={styles.viralCtaBadgeText}>FREE</Text>
-                </View>
-              </LinearGradient>
-            </Pressable>
-          </Animated.View>
-          <Animated.View style={pulseFortuneStyle}>
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                playNavVoice("Fortune Parlor. The cards know what you don't.");
-                router.push("/fortune");
-              }}
-              style={({ pressed }) => [styles.viralCtaButton, styles.viralFortune, pressed && { opacity: 0.85 }]}
-              testID="viral-fortune-btn"
-            >
-              <LinearGradient
-                colors={["#7C4DFF", "#B388FF", "#E040FB"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.viralCtaGradient}
-              >
-                <MaterialCommunityIcons name="crystal-ball" size={22} color="#fff" />
-                <Text style={styles.viralCtaText}>FORTUNE PARLOR</Text>
-                <View style={styles.viralCtaBadge}>
-                  <Text style={styles.viralCtaBadgeText}>TRY</Text>
-                </View>
-              </LinearGradient>
-            </Pressable>
-          </Animated.View>
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(350).duration(500)} style={[styles.modeButtons, sportsPulseStyle]}>
-          <Pressable
-            onPress={() => {
+            onInterview={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push("/interview");
+            }}
+            onTherapy={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              playNavVoice("Trump Therapy. Confront your issues with the man himself.");
+              router.push("/therapy");
+            }}
+            onFortune={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              playNavVoice("Fortune Parlor. The cards know what you don't.");
+              router.push("/fortune");
+            }}
+            onSports={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               playNavVoice("Sports Book. Live picks. Live games. The action is real.");
               router.push("/sports");
             }}
-            style={({ pressed }) => [styles.sportsTopButton, pressed && { opacity: 0.8 }]}
-            testID="sports-button"
-          >
-            <LinearGradient
-              colors={["#1a3a1a", "#0d1f0d", "#1a2a0f"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-            <MaterialCommunityIcons name="trophy" size={24} color="#4CAF50" />
-            <Text style={styles.sportsTopButtonText}>SPORTS BOOK</Text>
-            <View style={styles.sportsLiveBadge}>
-              <View style={styles.sportsLiveDot} />
-              <Text style={styles.sportsLiveBadgeText}>LIVE</Text>
-            </View>
-          </Pressable>
-        </Animated.View>
+          />
+        </View>
         <Animated.View entering={FadeInDown.delay(400).duration(500)} style={styles.modeButtons}>
           <Pressable
             onPress={() => { playNavVoice("Roast Me. You sure you can handle this?"); handleRoastMode(); }}
@@ -1879,9 +1766,12 @@ export default function HomeScreen() {
             setShowMoreModes((v) => !v);
           }}
           style={({ pressed }) => [styles.showMoreModesBtn, pressed && { opacity: 0.7 }]}
-          testID="show-more-modes-toggle"
+          testID="home-more-explore"
+          accessibilityRole="button"
+          accessibilityLabel={showMoreModes ? "Show fewer modes" : "More to explore"}
+          accessibilityState={{ expanded: showMoreModes }}
         >
-          <Text style={styles.showMoreModesText}>{showMoreModes ? "SHOW FEWER MODES" : "MORE MODES"}</Text>
+          <Text style={styles.showMoreModesText}>{showMoreModes ? "SHOW FEWER MODES" : "MORE TO EXPLORE"}</Text>
           <Ionicons name={showMoreModes ? "chevron-up" : "chevron-down"} size={14} color={Colors.gold} />
         </Pressable>
 

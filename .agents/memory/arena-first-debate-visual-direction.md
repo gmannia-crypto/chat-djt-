@@ -1,6 +1,6 @@
 ---
 name: Arena first-debate visual direction
-description: User-confirmed direction for first-debate and purchase-flow visuals.
+description: User-confirmed direction for home, first-debate and purchase-flow visuals.
 ---
 
 Keep the dramatic, editorial Arena first-debate and purchase-flow concept, with a translucent, slowly moving liquid background behind the content. The latest user-selected direction retains the original dark Arena gold/red colors, adds a glossy finish, and moves the real Dynamic Creations logo diagonally behind the page while electricity flows along its bolt.
@@ -16,3 +16,11 @@ The user asked: “Add a design picker inside Arena.” Keep design selection av
 **Why:** After the approved design was integrated, the user expected a prompt where they could choose the look.
 
 **How to apply:** Preserve a discoverable Design control and keep cosmetic choices separate from debate settings, access, and pricing.
+
+## Home-screen approval
+
+The proposed “Hear the clash. Take the mic.” entry model is approved for the app's home screen, using the existing gold/red visual direction.
+
+**Why:** The user explicitly asked: “Change the home screen to the proposed model.”
+
+**How to apply:** Preserve the proposed entry hierarchy and keep real navigation, archive, account, rewards, and other existing features available. This visual approval does not authorize changing access rules or pricing.
