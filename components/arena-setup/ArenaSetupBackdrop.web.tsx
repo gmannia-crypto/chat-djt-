@@ -1,5 +1,6 @@
 import React from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { Image } from "react-native";
+import { getArenaSetupPalette, type ArenaSetupDesign } from "@/lib/arena-setup-design";
 
 const LOGO_SOURCE = require("../../assets/images/dynamic-creations-transparent.png");
 const BOLT_PATH = "M552 282 L433 335 L469 282 L365 573";
@@ -105,6 +106,61 @@ const BACKDROP_STYLES = `
   stroke-dasharray: 23 505;
   animation-delay: -2.8s;
 }
+.arenaSetupBackdropRoot[data-arena-setup-design="classic"] {
+  background: #0a0a0a !important;
+}
+.arenaSetupBackdropRoot[data-arena-setup-design="classic"] .arenaSetupBackdropLiquid,
+.arenaSetupBackdropRoot[data-arena-setup-design="classic"] .arenaSetupBackdropGloss {
+  display: none;
+}
+.arenaSetupBackdropRoot[data-arena-setup-design="classic"] .arenaSetupBackdropMark {
+  top: 18px;
+  left: 20px;
+  opacity: .16;
+  mix-blend-mode: normal;
+  will-change: auto;
+  transform: none;
+  animation: none;
+}
+.arenaSetupBackdropRoot[data-arena-setup-design="classic"] .arenaSetupBackdropLogo {
+  animation: none;
+  filter: none;
+}
+.arenaSetupBackdropRoot[data-arena-setup-design="classic"] .arenaSetupBackdropBolt {
+  display: none;
+}
+.arenaSetupBackdropRoot[data-arena-setup-design="lavender"] {
+  background:
+    radial-gradient(ellipse at 12% 0%, rgba(255,255,255,.25), transparent 28rem),
+    linear-gradient(125deg, transparent 12%, rgba(255,255,255,.10) 22%, rgba(255,255,255,.34) 23%, rgba(255,255,255,.06) 25%, transparent 38%),
+    radial-gradient(ellipse at 82% 7%, rgba(85,49,181,.19), transparent 31rem),
+    radial-gradient(ellipse at 6% 48%, rgba(52,95,227,.16), transparent 28rem),
+    #b4a2e1 !important;
+}
+.arenaSetupBackdropRoot[data-arena-setup-design="lavender"] .arenaSetupBackdropLiquidOne {
+  background: radial-gradient(circle at 37% 35%, rgba(85,49,181,.3), rgba(143,120,243,.19) 55%, transparent 72%);
+}
+.arenaSetupBackdropRoot[data-arena-setup-design="lavender"] .arenaSetupBackdropLiquidTwo {
+  background: radial-gradient(circle at 55% 50%, rgba(52,95,227,.28), rgba(85,49,181,.15) 58%, transparent 73%);
+}
+.arenaSetupBackdropRoot[data-arena-setup-design="lavender"] .arenaSetupBackdropGloss {
+  background: linear-gradient(125deg, transparent 12%, rgba(255,255,255,.06) 22%, rgba(255,255,255,.26) 23%, rgba(255,255,255,.035) 25%, transparent 38%);
+}
+.arenaSetupBackdropRoot[data-arena-setup-design="lavender"] .arenaSetupBackdropMark {
+  mix-blend-mode: multiply;
+  opacity: .2;
+}
+.arenaSetupBackdropRoot[data-arena-setup-design="lavender"] .arenaSetupBackdropBolt path {
+  stroke: #345fe3;
+  filter: drop-shadow(0 0 3px #819aff) drop-shadow(0 0 10px rgba(85,49,181,.8));
+}
+.arenaSetupBackdropRoot[data-arena-setup-design="lavender"] .arenaSetupBackdropBolt .arenaSetupBackdropGlow {
+  stroke: #5531b5;
+  filter: drop-shadow(0 0 7px rgba(85,49,181,.8));
+}
+.arenaSetupBackdropRoot[data-arena-setup-design="lavender"] .arenaSetupBackdropBolt .arenaSetupBackdropCore {
+  stroke: #f4efff;
+}
 @keyframes arenaSetupBackdropTravel {
   from { transform: translate3d(calc(100vw - 100% - 20px), 18px, 0) rotate(-8deg); }
   to { transform: translate3d(20px, calc(100dvh - 100% - 20px), 0) rotate(8deg); }
@@ -133,20 +189,24 @@ const BACKDROP_STYLES = `
   .arenaSetupBackdropMark {
     transform: translate3d(calc(100vw - 100% - 20px), 18px, 0) rotate(-8deg);
   }
+  .arenaSetupBackdropRoot[data-arena-setup-design="classic"] .arenaSetupBackdropMark {
+    top: 18px;
+    left: 20px;
+    transform: none;
+  }
 }
 `;
 
-export function ArenaSetupBackdrop() {
+export function ArenaSetupBackdrop({ design = "electric" }: { design?: ArenaSetupDesign }) {
+  const palette = getArenaSetupPalette(design);
   return React.createElement(
-    View,
+    "div",
     {
-      pointerEvents: "none",
-      accessible: false,
-      accessibilityElementsHidden: true,
-      importantForAccessibility: "no-hide-descendants",
+      "aria-hidden": "true",
       className: "arenaSetupBackdropRoot",
-      style: [StyleSheet.absoluteFillObject, { backgroundColor: "#151412", zIndex: 0 }],
-    } as any,
+      "data-arena-setup-design": design,
+      style: { backgroundColor: palette.paper },
+    },
     React.createElement(
       React.Fragment,
       null,
@@ -160,12 +220,15 @@ export function ArenaSetupBackdrop() {
         React.createElement(
           "div",
           { className: "arenaSetupBackdropMark" },
-          React.createElement(Image, {
-            source: LOGO_SOURCE,
-            resizeMode: "contain",
-            className: "arenaSetupBackdropLogo",
-            style: styles.logo,
-          } as any),
+          React.createElement(
+            "div",
+            { className: "arenaSetupBackdropLogo" },
+            React.createElement(Image, {
+              source: LOGO_SOURCE,
+              resizeMode: "contain",
+              style: { width: "100%", height: "100%" },
+            }),
+          ),
           React.createElement(
             "svg",
             {
@@ -183,15 +246,3 @@ export function ArenaSetupBackdrop() {
     ),
   );
 }
-
-const styles = StyleSheet.create({
-  logo: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-  },
-});

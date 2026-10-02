@@ -55,6 +55,9 @@ import { ShareAppButton } from "@/components/ShareAppButton";
 import { CashAppDonate } from "@/components/CashAppDonate";
 import { OddsTimeline } from "@/components/OddsTimeline";
 import { ArenaSetupBackdrop } from "@/components/arena-setup/ArenaSetupBackdrop";
+import { ArenaDesignPicker } from "@/components/arena-setup/ArenaDesignPicker";
+import { useArenaSetupDesign } from "@/hooks/useArenaSetupDesign";
+import { ARENA_DESIGN_LABELS, getArenaSetupPalette } from "@/lib/arena-setup-design";
 import {
   markRecordingLieDisqualified,
   saveRecording,
@@ -4687,6 +4690,8 @@ export default function ArenaScreen() {
 
   const [showIntro, setShowIntro] = useState(false);
   const [showPreDebateSetup, setShowPreDebateSetup] = useState(true);
+  const arenaSetupDesign = useArenaSetupDesign();
+  const arenaSetupPalette = getArenaSetupPalette(arenaSetupDesign.design);
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const selectedTopicIdRef = useRef<string | null>(null);
   const [customTopicText, setCustomTopicText] = useState("");
@@ -9999,8 +10004,8 @@ export default function ArenaScreen() {
 
   if (showPreDebateSetup) {
     return (
-      <View style={[s.container, { paddingTop: 0, backgroundColor: "#151412" }]}>
-        <ArenaSetupBackdrop />
+      <View style={[s.container, { paddingTop: 0, backgroundColor: arenaSetupPalette.paper }]}>
+        <ArenaSetupBackdrop design={arenaSetupDesign.design} />
         <ScrollView contentContainerStyle={{
           paddingHorizontal: screenWidth >= 1100 ? Math.max(28, (screenWidth - 1080) / 2) : screenWidth < 420 ? 15 : 22,
           paddingTop: insets.top + webTopInset + 18,
@@ -10008,71 +10013,96 @@ export default function ArenaScreen() {
         }}>
           <View style={{
             minHeight: 238, justifyContent: "flex-end", paddingBottom: 24,
-            borderBottomWidth: 1, borderBottomColor: "rgba(232,191,102,0.18)", marginBottom: 18,
+            borderBottomWidth: 1, borderBottomColor: arenaSetupPalette.line, marginBottom: 18,
           }}>
-            <View style={{ position: "absolute", top: 2, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{
+              position: "absolute", top: 2, left: 0, right: 0,
+              flexDirection: screenWidth < 420 ? "column" : "row",
+              alignItems: screenWidth < 420 ? "stretch" : "center",
+              justifyContent: "space-between",
+            }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
                 <View style={{
                   width: 27, height: 27, borderRadius: 8, borderBottomLeftRadius: 2,
                   alignItems: "center", justifyContent: "center",
-                  backgroundColor: "#c39446", borderWidth: 1, borderColor: "rgba(255,238,188,0.55)",
+                  backgroundColor: arenaSetupPalette.accent, borderWidth: 1, borderColor: arenaSetupPalette.border,
                   shadowColor: "#000", shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
                 }}>
-                  <Text style={{ color: "#1d1710", fontFamily: "PlayfairDisplay_700Bold", fontSize: 15 }}>A</Text>
+                  <Text style={{ color: arenaSetupDesign.design === "lavender" ? "#f5efff" : "#1d1710", fontFamily: "PlayfairDisplay_700Bold", fontSize: 15 }}>A</Text>
                 </View>
-                <Text style={{ color: "#f5eee3", fontSize: 10, fontWeight: "900", letterSpacing: 1.5 }}>
-                  ARENA <Text style={{ color: "#e8bf66" }}>/</Text> LIVE DEBATE
+                <Text style={{ color: arenaSetupPalette.ink, fontSize: 10, fontWeight: "900", letterSpacing: 1.5 }}>
+                  ARENA <Text style={{ color: arenaSetupPalette.accent }}>/</Text> LIVE DEBATE
                 </Text>
               </View>
-              <Pressable
-                onPress={() => { Haptics.selectionAsync(); toggleSetupMusic(); }}
-                accessibilityRole="button"
-                accessibilityLabel={setupMusicEnabled ? "Turn setup music off" : "Turn setup music on"}
-                style={{
-                  flexDirection: "row", alignItems: "center", gap: 6,
-                  backgroundColor: "rgba(25,22,18,0.82)", borderRadius: 20, paddingHorizontal: 11, paddingVertical: 7,
-                  borderWidth: 1, borderColor: setupMusicEnabled ? "rgba(232,191,102,0.58)" : "rgba(237,212,172,0.2)",
-                }}
-                testID="setup-music-toggle"
-              >
-                <Ionicons name={setupMusicEnabled ? "musical-notes" : "musical-notes-outline"} size={14} color={setupMusicEnabled ? "#e8bf66" : "#c2b7a6"} />
-                <Text style={{ color: setupMusicEnabled ? "#e8bf66" : "#c2b7a6", fontSize: 9, fontWeight: "800", letterSpacing: 0.6 }}>
-                  {setupMusicEnabled ? "MUSIC ON" : "MUSIC OFF"}
-                </Text>
-              </Pressable>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: screenWidth < 420 ? "flex-end" : undefined, marginTop: screenWidth < 420 ? 8 : 0 }}>
+                <Pressable
+                  onPress={arenaSetupDesign.openPicker}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Design: ${ARENA_DESIGN_LABELS[arenaSetupDesign.design]}`}
+                  style={{
+                    flexDirection: "row", alignItems: "center", gap: 5,
+                    backgroundColor: arenaSetupDesign.design === "lavender" ? arenaSetupPalette.surface : arenaSetupPalette.gloss ? "rgba(25,22,18,0.82)" : "#171717",
+                    borderRadius: 20, paddingHorizontal: 9, paddingVertical: 7,
+                    borderWidth: 1, borderColor: arenaSetupPalette.accent,
+                    maxWidth: screenWidth < 420 ? 150 : 190,
+                  }}
+                  testID="arena-design-open"
+                >
+                  <Ionicons name="color-palette-outline" size={13} color={arenaSetupPalette.accent} />
+                  <Text numberOfLines={1} style={{ color: arenaSetupPalette.accent, fontSize: 9, fontWeight: "800", letterSpacing: 0.25, flexShrink: 1 }}>
+                    DESIGN · {ARENA_DESIGN_LABELS[arenaSetupDesign.design]}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => { Haptics.selectionAsync(); toggleSetupMusic(); }}
+                  accessibilityRole="button"
+                  accessibilityLabel={setupMusicEnabled ? "Turn setup music off" : "Turn setup music on"}
+                  style={{
+                    flexDirection: "row", alignItems: "center", gap: 6,
+                    backgroundColor: arenaSetupDesign.design === "lavender" ? arenaSetupPalette.surface : arenaSetupPalette.gloss ? "rgba(25,22,18,0.82)" : "#171717", borderRadius: 20, paddingHorizontal: 11, paddingVertical: 7,
+                    borderWidth: 1, borderColor: setupMusicEnabled ? arenaSetupPalette.accent : arenaSetupPalette.border,
+                  }}
+                  testID="setup-music-toggle"
+                >
+                  <Ionicons name={setupMusicEnabled ? "musical-notes" : "musical-notes-outline"} size={14} color={setupMusicEnabled ? arenaSetupPalette.accent : arenaSetupPalette.muted} />
+                  <Text style={{ color: setupMusicEnabled ? arenaSetupPalette.accent : arenaSetupPalette.muted, fontSize: 9, fontWeight: "800", letterSpacing: 0.6 }}>
+                    {setupMusicEnabled ? "MUSIC ON" : "MUSIC OFF"}
+                  </Text>
+                </Pressable>
+              </View>
             </View>
-            <View style={{ marginTop: 45 }}>
+            <View style={{ marginTop: screenWidth < 420 ? 83 : 45 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <View style={{ width: 20, height: 2, backgroundColor: "#e65b48" }} />
-                <Text style={{ color: "#e8bf66", fontSize: 9, fontWeight: "900", letterSpacing: 1.7 }}>BUILD YOUR ROOM · OPEN FLOOR</Text>
+                <View style={{ width: 20, height: 2, backgroundColor: arenaSetupPalette.red }} />
+                <Text style={{ color: arenaSetupPalette.accent, fontSize: 9, fontWeight: "900", letterSpacing: 1.7 }}>BUILD YOUR ROOM · OPEN FLOOR</Text>
               </View>
               <Text style={{
-                color: "#f5eee3", fontSize: screenWidth < 420 ? 43 : 58, lineHeight: screenWidth < 420 ? 47 : 62,
+                color: arenaSetupPalette.ink, fontSize: screenWidth < 420 ? 43 : 58, lineHeight: screenWidth < 420 ? 47 : 62,
                 fontWeight: "500", letterSpacing: -2.4, marginTop: 15,
               }} numberOfLines={1} adjustsFontSizeToFit>Pick a side.</Text>
               <Text style={{
-                color: "#e8bf66", fontFamily: "PlayfairDisplay_400Regular", fontStyle: "italic",
+                color: arenaSetupPalette.accent, fontFamily: "PlayfairDisplay_400Regular", fontStyle: "italic",
                 fontSize: screenWidth < 420 ? 41 : 56, lineHeight: screenWidth < 420 ? 47 : 62, letterSpacing: -1.8,
               }} numberOfLines={1} adjustsFontSizeToFit>Make some current.</Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 9 }}>
-                <View style={{ width: 27, height: 1, backgroundColor: "#9e773e" }} />
-                <Text style={{ color: "#c2b7a6", fontSize: 11, lineHeight: 17 }}>Six live-wire matchups. Three voices. No softballs.</Text>
+                <View style={{ width: 27, height: 1, backgroundColor: arenaSetupPalette.accent }} />
+                <Text style={{ color: arenaSetupPalette.muted, fontSize: 11, lineHeight: 17 }}>Six live-wire matchups. Three voices. No softballs.</Text>
               </View>
             </View>
             {screenWidth >= 520 && (
               <View style={{ position: "absolute", right: 0, top: 72, flexDirection: "row", alignItems: "center", gap: 9 }}>
-                <Text style={{ color: "#e65b48", fontFamily: "PlayfairDisplay_400Regular", fontSize: 31 }}>06</Text>
-                <Text style={{ color: "#c2b7a6", fontSize: 8, fontWeight: "900", letterSpacing: 1, lineHeight: 12 }}>ROOMS{"\n"}READY</Text>
+                <Text style={{ color: arenaSetupPalette.red, fontFamily: "PlayfairDisplay_400Regular", fontSize: 31 }}>06</Text>
+                <Text style={{ color: arenaSetupPalette.muted, fontSize: 8, fontWeight: "900", letterSpacing: 1, lineHeight: 12 }}>ROOMS{"\n"}READY</Text>
               </View>
             )}
           </View>
 
           <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 12 }}>
             <View>
-              <Text style={{ color: "#c2b7a6", fontSize: 8, fontWeight: "900", letterSpacing: 1.5 }}>CHOOSE YOUR MATCHUP</Text>
-              <Text style={{ color: "#f5eee3", fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, marginTop: 3 }}>Who’s taking the mic?</Text>
+              <Text style={{ color: arenaSetupPalette.muted, fontSize: 8, fontWeight: "900", letterSpacing: 1.5 }}>CHOOSE YOUR MATCHUP</Text>
+              <Text style={{ color: arenaSetupPalette.ink, fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, marginTop: 3 }}>Who’s taking the mic?</Text>
             </View>
-            <Text style={{ color: "#e8bf66", fontFamily: "monospace", fontSize: 10 }}>01 — 06</Text>
+            <Text style={{ color: arenaSetupPalette.accent, fontFamily: "monospace", fontSize: 10 }}>01 — 06</Text>
           </View>
 
           <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 10, marginBottom: 16 }}>
@@ -10107,33 +10137,35 @@ export default function ArenaScreen() {
                   }}
                   style={{
                     width: cardWidth, minHeight: 178, borderRadius: 14, overflow: "hidden", padding: 14,
-                    borderWidth: 1, borderColor: isSelected ? "#e8bf66" : "rgba(237,212,172,0.3)",
+                    borderWidth: 1, borderColor: isSelected ? arenaSetupPalette.accent : arenaSetupPalette.border,
                     shadowColor: "#000", shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 7 },
                     opacity: presetCanApply ? 1 : 0.5,
                     ...(Platform.OS === "web" ? { boxShadow: isSelected ? "0 0 0 2px rgba(232,191,102,.14), 0 14px 28px rgba(0,0,0,.45)" : "0 10px 25px rgba(0,0,0,.3)" } as any : {}),
                   }}
                 >
                   <LinearGradient
-                    colors={isSelected ? ["#66503a", "#3b2c22", "#1c1915"] : ["#504234", "#2b241e", "#191816"]}
+                    colors={isSelected ? arenaSetupPalette.selectedGradient : arenaSetupPalette.surfaceGradient}
                     locations={[0, 0.34, 1]}
                     style={StyleSheet.absoluteFill}
                   />
-                  <LinearGradient
-                    colors={["rgba(255,239,213,0.12)", "rgba(255,239,213,0.025)", "transparent"]}
-                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                    style={{ position: "absolute", top: 0, left: 0, right: 0, height: 82 }}
-                    pointerEvents="none"
-                  />
+                  {arenaSetupPalette.gloss && (
+                    <LinearGradient
+                      colors={["rgba(255,239,213,0.12)", "rgba(255,239,213,0.025)", "transparent"]}
+                      start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                      style={{ position: "absolute", top: 0, left: 0, right: 0, height: 82 }}
+                      pointerEvents="none"
+                    />
+                  )}
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <Text style={{ color: "#d3c4ad", fontFamily: "monospace", fontSize: 10 }}>{preset.number}</Text>
-                    <Text style={{ color: "#e8bf66", fontSize: 8, fontWeight: "900", letterSpacing: 1 }}>{preset.label}</Text>
+                    <Text style={{ color: arenaSetupPalette.muted, fontFamily: "monospace", fontSize: 10 }}>{preset.number}</Text>
+                    <Text style={{ color: arenaSetupPalette.accent, fontSize: 8, fontWeight: "900", letterSpacing: 1 }}>{preset.label}</Text>
                     <View style={{
                       width: 20, height: 20, marginLeft: "auto", borderRadius: 10,
-                      borderWidth: 1, borderColor: isSelected ? "#e8bf66" : "#9c8c75",
-                      backgroundColor: isSelected ? "#e8bf66" : "rgba(0,0,0,0.16)",
+                      borderWidth: 1, borderColor: isSelected ? arenaSetupPalette.accent : arenaSetupPalette.border,
+                      backgroundColor: isSelected ? arenaSetupPalette.accent : arenaSetupPalette.receipt,
                       alignItems: "center", justifyContent: "center",
                     }}>
-                      <Ionicons name={isSelected ? "checkmark" : "add"} size={13} color={isSelected ? "#241b10" : "#d3c4ad"} />
+                      <Ionicons name={isSelected ? "checkmark" : "add"} size={13} color={isSelected ? (arenaSetupDesign.design === "lavender" ? "#fff" : "#241b10") : arenaSetupPalette.muted} />
                     </View>
                   </View>
                   <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, marginBottom: 7 }}>
@@ -10150,13 +10182,13 @@ export default function ArenaScreen() {
                         )}
                       </View>
                     ))}
-                    <Text style={{ color: "#c2b7a6", fontSize: 7, fontWeight: "900", letterSpacing: 1, marginLeft: 12 }}>3 VOICES</Text>
+                    <Text style={{ color: arenaSetupPalette.muted, fontSize: 7, fontWeight: "900", letterSpacing: 1, marginLeft: 12 }}>3 VOICES</Text>
                   </View>
-                  <Text style={{ color: "#f5eee3", fontFamily: "PlayfairDisplay_700Bold", fontSize: 19, lineHeight: 22 }}>{preset.title}</Text>
-                  <Text style={{ color: "#c2b7a6", fontSize: 9, marginTop: 2, marginBottom: 9 }}>{preset.note}</Text>
-                  <View style={{ borderTopWidth: 1, borderColor: "rgba(232,191,102,0.18)", paddingTop: 7, marginTop: "auto" }}>
-                    <Text style={{ color: "#c2b7a6", fontSize: 7, fontWeight: "900", letterSpacing: 1 }}>THE QUESTION</Text>
-                    <Text style={{ color: "#e7dac7", fontSize: 9, lineHeight: 13, marginTop: 3 }}>{preset.topic}</Text>
+                  <Text style={{ color: arenaSetupPalette.ink, fontFamily: "PlayfairDisplay_700Bold", fontSize: 19, lineHeight: 22 }}>{preset.title}</Text>
+                  <Text style={{ color: arenaSetupPalette.muted, fontSize: 9, marginTop: 2, marginBottom: 9 }}>{preset.note}</Text>
+                  <View style={{ borderTopWidth: 1, borderColor: arenaSetupPalette.line, paddingTop: 7, marginTop: "auto" }}>
+                    <Text style={{ color: arenaSetupPalette.muted, fontSize: 7, fontWeight: "900", letterSpacing: 1 }}>THE QUESTION</Text>
+                    <Text style={{ color: arenaSetupDesign.design === "lavender" ? "#35345b" : arenaSetupPalette.ink, fontSize: 9, lineHeight: 13, marginTop: 3 }}>{preset.topic}</Text>
                   </View>
                 </Pressable>
               );
@@ -10166,20 +10198,33 @@ export default function ArenaScreen() {
           <View
             style={{
               padding: 17, borderRadius: 15, overflow: "hidden", marginBottom: 16,
-              borderWidth: 1, borderColor: "rgba(237,212,172,0.32)",
+              borderWidth: 1, borderColor: arenaSetupPalette.border,
+              backgroundColor: arenaSetupPalette.surface,
               shadowColor: "#000", shadowOpacity: 0.32, shadowRadius: 14, shadowOffset: { width: 0, height: 8 },
             }}
             testID="arena-session-duration-selector"
           >
-            <LinearGradient colors={["rgba(80,66,52,0.98)", "rgba(43,36,30,0.98)", "rgba(25,24,22,0.98)"]} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} />
+            <LinearGradient
+              colors={arenaSetupPalette.surfaceGradient}
+              locations={[0, 0.35, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+            {arenaSetupPalette.gloss && (
+              <LinearGradient
+                colors={["rgba(255,255,255,0.25)", "rgba(255,255,255,0.04)", "transparent"]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={{ position: "absolute", top: 0, left: 0, right: 0, height: 92 }}
+                pointerEvents="none"
+              />
+            )}
             <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: "#e8bf66", fontSize: 8, fontWeight: "900", letterSpacing: 1.4 }}>YOUR SESSION</Text>
-                <Text style={{ color: "#f5eee3", fontFamily: "PlayfairDisplay_700Bold", fontSize: 20, marginTop: 3 }}>Set your time in the arena.</Text>
+                <Text style={{ color: arenaSetupPalette.accent, fontSize: 8, fontWeight: "900", letterSpacing: 1.4 }}>YOUR SESSION</Text>
+                <Text style={{ color: arenaSetupPalette.ink, fontFamily: "PlayfairDisplay_700Bold", fontSize: 20, marginTop: 3 }}>Set your time in the arena.</Text>
               </View>
               <View style={{ alignItems: "flex-end", marginLeft: 10 }}>
-                <Text style={{ color: "#c2b7a6", fontSize: 7, fontWeight: "900", letterSpacing: 1 }}>TOKEN BALANCE</Text>
-                <Text style={{ color: "#e8bf66", fontSize: 12, fontWeight: "900", marginTop: 4 }}>
+                <Text style={{ color: arenaSetupPalette.muted, fontSize: 7, fontWeight: "900", letterSpacing: 1 }}>TOKEN BALANCE</Text>
+                <Text style={{ color: arenaSetupPalette.accent, fontSize: 12, fontWeight: "900", marginTop: 4 }}>
                   {balance ? `${balance.totalAvailable} tokens` : "Checking…"}
                 </Text>
               </View>
@@ -10196,17 +10241,17 @@ export default function ArenaScreen() {
                     accessibilityLabel={`${dur} minutes, ${dur} tokens`}
                     style={{
                       flex: 1, minHeight: 48, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 7,
-                      borderWidth: 1, borderColor: isActive ? "#e8bf66" : "#74614b",
-                      backgroundColor: isActive ? "rgba(113,84,51,0.8)" : "rgba(37,33,28,0.88)",
+                      borderWidth: 1, borderColor: isActive ? arenaSetupPalette.accent : arenaSetupPalette.border,
+                      backgroundColor: isActive ? arenaSetupPalette.selectedSurface : arenaSetupPalette.receipt,
                       justifyContent: "center",
-                      shadowColor: isActive ? "#e8bf66" : "#000", shadowOpacity: isActive ? 0.14 : 0.1, shadowRadius: 5,
+                      shadowColor: isActive ? arenaSetupPalette.accent : "#000", shadowOpacity: isActive ? 0.14 : 0.1, shadowRadius: 5,
                     }}
                     testID={`arena-duration-${dur}`}
                   >
-                    <Text style={{ color: isActive ? "#ffdf93" : "#f5eee3", fontFamily: "PlayfairDisplay_700Bold", fontSize: 18 }}>
+                    <Text style={{ color: isActive ? arenaSetupPalette.accent : arenaSetupPalette.ink, fontFamily: "PlayfairDisplay_700Bold", fontSize: 18 }}>
                       {dur}<Text style={{ fontFamily: undefined, fontSize: 8, fontWeight: "900" }}> MIN</Text>
                     </Text>
-                    <Text style={{ color: isActive ? "#ffdf93" : "#c2b7a6", fontSize: 7, fontWeight: "900", letterSpacing: 0.7, marginTop: 1 }}>
+                    <Text style={{ color: isActive ? arenaSetupPalette.accent : arenaSetupPalette.muted, fontSize: 7, fontWeight: "900", letterSpacing: 0.7, marginTop: 1 }}>
                       {dur} TOKENS
                     </Text>
                   </Pressable>
@@ -10215,18 +10260,18 @@ export default function ArenaScreen() {
             </View>
             <View style={{
               flexDirection: screenWidth < 540 ? "column" : "row", alignItems: "flex-start", gap: 9,
-              marginTop: 11, padding: 10, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.23)",
+              marginTop: 11, padding: 10, borderRadius: 8, backgroundColor: arenaSetupPalette.receipt,
             }}>
-              <Ionicons name="information-circle-outline" size={16} color="#e8bf66" />
+              <Ionicons name="information-circle-outline" size={16} color={arenaSetupPalette.accent} />
               <View style={{ flex: 1 }}>
-                <Text style={{ color: "#f5eee3", fontSize: 10, fontWeight: "800" }}>Trial eligibility is confirmed by Arena when you start.</Text>
-                <Text style={{ color: "#c2b7a6", fontSize: 9, lineHeight: 14, marginTop: 3 }}>
+                <Text style={{ color: arenaSetupPalette.ink, fontSize: 10, fontWeight: "800" }}>Trial eligibility is confirmed by Arena when you start.</Text>
+                <Text style={{ color: arenaSetupPalette.muted, fontSize: 9, lineHeight: 14, marginTop: 3 }}>
                   If the server grants a trial, it lasts 2 minutes, costs 0 tokens, and does not include an official verdict. Otherwise, paid sessions are 5, 10, or 15 minutes at 1 token per minute. Choosing a matchup never spends tokens.
                 </Text>
               </View>
               <View style={{ alignItems: screenWidth < 540 ? "flex-start" : "flex-end", minWidth: screenWidth < 540 ? undefined : 90 }}>
-                <Text style={{ color: "#c2b7a6", fontSize: 7, fontWeight: "900", letterSpacing: 1 }}>THIS SESSION</Text>
-                <Text style={{ color: "#e8bf66", fontFamily: "PlayfairDisplay_700Bold", fontSize: 15, marginTop: 3 }}>{selectedDuration} TOKENS</Text>
+                <Text style={{ color: arenaSetupPalette.muted, fontSize: 7, fontWeight: "900", letterSpacing: 1 }}>THIS SESSION</Text>
+                <Text style={{ color: arenaSetupPalette.accent, fontFamily: "PlayfairDisplay_700Bold", fontSize: 15, marginTop: 3 }}>{selectedDuration} TOKENS</Text>
               </View>
             </View>
             <View style={{
@@ -10236,7 +10281,7 @@ export default function ArenaScreen() {
             }}>
               <View style={{ flex: screenWidth < 540 ? undefined : 1, flexDirection: "row", alignItems: "center", gap: 6, marginBottom: screenWidth < 540 ? 8 : 0 }}>
                 <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: hasSession ? "#79c48d" : "#e65b48" }} />
-                <Text style={{ color: "#c2b7a6", fontSize: 9 }} accessibilityLiveRegion="polite">
+                <Text style={{ color: arenaSetupPalette.muted, fontSize: 9 }} accessibilityLiveRegion="polite">
                   {hasSession && sessionTimer > 0
                     ? `Arena access active · ${Math.max(1, Math.ceil(sessionTimer / 60))} min remaining`
                     : hasSession
@@ -10251,14 +10296,14 @@ export default function ArenaScreen() {
                 accessibilityState={{ disabled: !deviceId || isUnlocking, busy: isUnlocking }}
                 style={{
                   paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
-                  borderWidth: 1, borderColor: "rgba(232,191,102,0.48)",
-                  backgroundColor: "rgba(232,191,102,0.11)", opacity: !deviceId || isUnlocking ? 0.55 : 1,
+                  borderWidth: 1, borderColor: arenaSetupPalette.accent,
+                  backgroundColor: arenaSetupDesign.design === "lavender" ? "rgba(85,49,181,0.12)" : `${arenaSetupPalette.accent}1c`, opacity: !deviceId || isUnlocking ? 0.55 : 1,
                   alignItems: "center",
                 }}
                 testID="arena-unlock-timed-session"
               >
-                {isUnlocking ? <ActivityIndicator size="small" color="#e8bf66" /> : (
-                  <Text style={{ color: "#e8bf66", fontSize: 8, fontWeight: "900", letterSpacing: 0.4 }}>
+                {isUnlocking ? <ActivityIndicator size="small" color={arenaSetupPalette.accent} /> : (
+                  <Text style={{ color: arenaSetupPalette.accent, fontSize: 8, fontWeight: "900", letterSpacing: 0.4 }}>
                     UNLOCK {selectedDuration} MIN · {selectedDuration} TOKENS
                   </Text>
                 )}
@@ -10275,7 +10320,7 @@ export default function ArenaScreen() {
               backgroundColor: "rgba(43,36,30,0.82)", borderWidth: 1, borderColor: "rgba(237,212,172,0.24)",
             }}
           >
-            <LinearGradient colors={["rgba(255,239,213,0.1)", "rgba(255,239,213,0.02)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
+            {arenaSetupPalette.gloss && <LinearGradient colors={["rgba(255,239,213,0.1)", "rgba(255,239,213,0.02)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />}
             <Ionicons name="options-outline" size={18} color="#e8bf66" />
             <View style={{ flex: 1 }}>
               <Text style={{ color: "#f5eee3", fontSize: 11, fontWeight: "900", letterSpacing: 0.8 }}>ROOM CONTROLS</Text>
@@ -10284,8 +10329,8 @@ export default function ArenaScreen() {
             <Ionicons name={showSetupRoomOptions ? "chevron-up" : "chevron-down"} size={16} color="#e8bf66" />
           </Pressable>
           {showSetupRoomOptions && (
-            <View style={{ marginBottom: 12, padding: 12, borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: "rgba(237,212,172,0.2)", backgroundColor: "rgba(21,20,18,0.72)" }}>
-              <LinearGradient colors={["rgba(255,239,213,0.065)", "rgba(255,239,213,0.01)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
+            <View style={{ marginBottom: 12, padding: 12, borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: "rgba(237,212,172,0.2)", backgroundColor: arenaSetupPalette.controlsSurface }}>
+              {arenaSetupPalette.gloss && <LinearGradient colors={["rgba(255,239,213,0.065)", "rgba(255,239,213,0.01)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />}
           <Pressable
             onPress={() => setShowArenaRules(!showArenaRules)}
             style={{
@@ -10445,7 +10490,7 @@ export default function ArenaScreen() {
               backgroundColor: "rgba(43,36,30,0.82)", borderWidth: 1, borderColor: "rgba(237,212,172,0.24)",
             }}
           >
-            <LinearGradient colors={["rgba(255,239,213,0.1)", "rgba(255,239,213,0.02)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
+            {arenaSetupPalette.gloss && <LinearGradient colors={["rgba(255,239,213,0.1)", "rgba(255,239,213,0.02)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />}
             <Ionicons name="grid-outline" size={18} color="#e8bf66" />
             <View style={{ flex: 1 }}>
               <Text style={{ color: "#f5eee3", fontSize: 11, fontWeight: "900", letterSpacing: 0.8 }}>MORE ARENA MODES</Text>
@@ -10550,7 +10595,7 @@ export default function ArenaScreen() {
               backgroundColor: "rgba(43,36,30,0.82)", borderWidth: 1, borderColor: "rgba(237,212,172,0.24)",
             }}
           >
-            <LinearGradient colors={["rgba(255,239,213,0.1)", "rgba(255,239,213,0.02)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
+            {arenaSetupPalette.gloss && <LinearGradient colors={["rgba(255,239,213,0.1)", "rgba(255,239,213,0.02)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />}
             <Ionicons name="people-outline" size={18} color="#e8bf66" />
             <View style={{ flex: 1 }}>
               <Text style={{ color: "#f5eee3", fontSize: 11, fontWeight: "900", letterSpacing: 0.8 }}>PERSONA PICKER</Text>
@@ -10559,7 +10604,7 @@ export default function ArenaScreen() {
             <Ionicons name={showSetupPersonas ? "chevron-up" : "chevron-down"} size={16} color="#e8bf66" />
           </Pressable>
           {showSetupPersonas && (
-            <View style={{ marginBottom: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(237,212,172,0.2)", backgroundColor: "rgba(21,20,18,0.72)" }}>
+            <View style={{ marginBottom: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(237,212,172,0.2)", backgroundColor: arenaSetupPalette.controlsSurface }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800" }}>{selectedPersonas.length} DEBATERS SELECTED</Text>
             <View style={{ flexDirection: "row", gap: 12 }}>
@@ -10799,7 +10844,7 @@ export default function ArenaScreen() {
               backgroundColor: "rgba(43,36,30,0.82)", borderWidth: 1, borderColor: "rgba(237,212,172,0.24)",
             }}
           >
-            <LinearGradient colors={["rgba(255,239,213,0.1)", "rgba(255,239,213,0.02)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
+            {arenaSetupPalette.gloss && <LinearGradient colors={["rgba(255,239,213,0.1)", "rgba(255,239,213,0.02)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />}
             <Ionicons name="analytics-outline" size={18} color="#e8bf66" />
             <View style={{ flex: 1 }}>
               <Text style={{ color: "#f5eee3", fontSize: 11, fontWeight: "900", letterSpacing: 0.8 }}>IQ RACE & BETTING</Text>
@@ -10808,7 +10853,7 @@ export default function ArenaScreen() {
             <Ionicons name={showSetupBetting ? "chevron-up" : "chevron-down"} size={16} color="#e8bf66" />
           </Pressable>
           {showSetupBetting && (
-            <View style={{ marginBottom: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(237,212,172,0.2)", backgroundColor: "rgba(21,20,18,0.72)" }}>
+            <View style={{ marginBottom: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(237,212,172,0.2)", backgroundColor: arenaSetupPalette.controlsSurface }}>
           {selectedPersonas.length >= 2 && !arenaBet && (
             <View style={{ marginBottom: 16, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: activeSpecialEvent ? activeSpecialEvent.badgeColor : "rgba(251,191,36,0.35)", backgroundColor: "rgba(251,191,36,0.06)" }}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
@@ -11096,7 +11141,7 @@ export default function ArenaScreen() {
               backgroundColor: "rgba(43,36,30,0.82)", borderWidth: 1, borderColor: "rgba(237,212,172,0.24)",
             }}
           >
-            <LinearGradient colors={["rgba(255,239,213,0.1)", "rgba(255,239,213,0.02)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
+            {arenaSetupPalette.gloss && <LinearGradient colors={["rgba(255,239,213,0.1)", "rgba(255,239,213,0.02)", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />}
             <Ionicons name="chatbox-ellipses-outline" size={18} color="#e8bf66" />
             <View style={{ flex: 1 }}>
               <Text style={{ color: "#f5eee3", fontSize: 11, fontWeight: "900", letterSpacing: 0.8 }}>TOPIC & DEBATE TONE</Text>
@@ -11111,7 +11156,7 @@ export default function ArenaScreen() {
             <Ionicons name={showSetupTopics ? "chevron-up" : "chevron-down"} size={16} color="#e8bf66" />
           </Pressable>
           {showSetupTopics && (
-            <View style={{ marginBottom: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(237,212,172,0.2)", backgroundColor: "rgba(21,20,18,0.72)" }}>
+            <View style={{ marginBottom: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(237,212,172,0.2)", backgroundColor: arenaSetupPalette.controlsSurface }}>
           {/* ── DEBATE MODE ─────────────────────────────────── */}
           <Text style={{ color: "#FFD700", fontSize: 14, fontWeight: "800", marginBottom: 8, marginTop: 4 }}>DEBATE MODE</Text>
           <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
@@ -11410,17 +11455,17 @@ export default function ArenaScreen() {
             }}
             style={{
               marginTop: 18, paddingVertical: 15, paddingHorizontal: 16, borderRadius: 12, alignItems: "center", overflow: "hidden",
-              borderWidth: 1, borderColor: (selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !isStarting && !!deviceId) ? "rgba(255,193,164,0.55)" : "rgba(255,255,255,0.1)",
-              backgroundColor: (selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !isStarting && !!deviceId) ? "#cc4937" : "rgba(255,255,255,0.1)",
+              borderWidth: 1, borderColor: (selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !isStarting && !!deviceId) ? arenaSetupPalette.accent : arenaSetupPalette.border,
+              backgroundColor: (selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !isStarting && !!deviceId) ? arenaSetupPalette.buttonGradient[1] : arenaSetupPalette.receipt,
               opacity: (selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !isStarting && !!deviceId) ? 1 : 0.4,
               shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 7 },
             }}
           >
             <LinearGradient
               colors={(selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !isStarting && !!deviceId)
-                ? ["#f9977c", "#dc6550", "#ae3d30", "#cc4937"]
+                ? arenaSetupPalette.buttonGradient
                 : ["rgba(255,255,255,0.11)", "rgba(255,255,255,0.06)"]}
-              locations={(selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !isStarting && !!deviceId) ? [0, 0.46, 0.5, 1] : undefined}
+              locations={(selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !isStarting && !!deviceId) ? [0, 0.46, 1] : undefined}
               style={StyleSheet.absoluteFill}
               pointerEvents="none"
             />
@@ -11434,6 +11479,15 @@ export default function ArenaScreen() {
 
           <CashAppDonate />
         </ScrollView>
+
+        <ArenaDesignPicker
+          visible={arenaSetupDesign.pickerVisible}
+          selected={arenaSetupDesign.design}
+          onSelect={arenaSetupDesign.chooseDesign}
+          onClose={arenaSetupDesign.closePicker}
+          saving={arenaSetupDesign.saving}
+          error={arenaSetupDesign.error}
+        />
 
         {/* Paywall must also be reachable from the pre-debate setup screen —
             pressing "START DEBATE" here can open the paywall (e.g. trial

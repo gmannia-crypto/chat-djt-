@@ -8,3 +8,11 @@ Keep the dramatic, editorial Arena first-debate and purchase-flow concept, with 
 **Why:** The user explicitly liked the original design. After exploring lavender alternatives, they selected “Original dark Arena colors — gold and red,” added “Add glossy finish,” and requested diagonal logo motion with the electric effect retained. They then explicitly approved the completed dark, glossy, diagonally animated version with “I like that.”
 
 **How to apply:** The user approved integrating this direction into the live Arena setup. Carry over the approved visual hierarchy and liquid background, but keep foreground text and controls legible and respect reduced-motion preferences. This approval does not extend to changing live checkout, pricing, debate authorization, or the live debate stage.
+
+## In-app design selection
+
+The user asked: “Add a design picker inside Arena.” Keep design selection available in the Arena setup itself, not only in chat.
+
+**Why:** After the approved design was integrated, the user expected a prompt where they could choose the look.
+
+**How to apply:** Preserve a discoverable Design control and keep cosmetic choices separate from debate settings, access, and pricing.
