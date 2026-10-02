@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { registerHomePersonaPreview } from "./home-persona-preview";
 import { createServer, type Server } from "node:http";
 import {
   SHARED_NO_AI_BASE as _SHARED_NO_AI_BASE,
@@ -3680,6 +3681,22 @@ Break down this March Madness matchup. Who wins and why? Consider seeds, matchup
     }
   })();
   // ─────────────────────────────────────────────────────────────────────────
+
+  registerHomePersonaPreview(app, async (personaId, text) => {
+    const apiKey = process.env.FISH_AUDIO_API_KEY;
+    const voiceId = PERSONA_VOICE_IDS[personaId];
+    if (!apiKey || !voiceId) throw new Error("Preview voice unavailable");
+    return getPersonaTTSBuffer({
+      text, voiceId, apiKey,
+      speed: PERSONA_SPEED_MAP[personaId] ?? 1,
+      volumeDb: PERSONA_VOLUME_BOOST[personaId] ?? 0,
+      emotion: PERSONA_EMOTION_MAP[personaId],
+      bleepRequested: false,
+      hasCurseWords: (t) => findCursePositions(t).length > 0,
+      overlayBleeps,
+      retries: 1,
+    });
+  });
 
   app.post("/api/persona-speak", async (req, res) => {
     try {

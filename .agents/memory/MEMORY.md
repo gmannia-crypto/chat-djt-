@@ -25,3 +25,4 @@
 - [Sandbox preview verification](sandbox-preview-verification.md) — app-preview screenshots target Expo, not a separate mockup artifact; wait for lazy imports when capturing the sandbox.
 - [Arena first-debate visual direction](arena-first-debate-visual-direction.md) — user liked the editorial Arena redesign and requested a translucent moving liquid background; preserve that direction in future integration.
 - [RN Web prop forwarding](react-native-web-css-wrappers.md) — verify DOM forwarding for themes, motion, and accessibility states; nested native state can be dropped on web.
+- [Home preview data budget](home-preview-data-budget.md) — user wants varied, name-addressed persona pitches, but limits speaking to about four personas to save data.
