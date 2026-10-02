@@ -1,6 +1,6 @@
 ---
-name: React Native Web CSS wrappers
-description: Verify DOM attribute forwarding before relying on scoped web theme or animation selectors.
+name: React Native Web prop forwarding
+description: Verify DOM forwarding for scoped themes, motion, and accessibility states.
 ---
 
 Use actual DOM wrappers in web-only components when CSS selectors depend on custom classes or `data-*` attributes; do not assume React Native Web's View or Image forwards them.
@@ -14,3 +14,9 @@ Verify native asset-resolution APIs before calling them in web code: the install
 **Why:** A module-level call caused an import-time crash even though the API is familiar from native RN.
 
 **How to apply:** Prefer the existing working RN Image asset path inside a DOM wrapper unless a supported web resolver has been verified.
+
+The installed React Native Web does not translate the nested `accessibilityState` object into DOM state attributes. Use supported `aria-*` aliases as well as native accessibility state for checked, expanded, disabled, and busy controls.
+
+**Why:** Browser tests found missing checked/expanded attributes despite correct visual selection. The installed DOM-prop mapper accepts individual ARIA aliases, not the nested native state object.
+
+**How to apply:** Verify attributes on the actual interactive element rather than its surrounding test-ID container. Use checked state for radios; do not use selected state as a substitute.

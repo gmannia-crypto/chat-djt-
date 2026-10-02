@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -34,24 +34,27 @@ import { useTokens } from "@/lib/token-context";
 import { useSound } from "@/lib/sound-context";
 import { playRewardChime } from "@/lib/arena-sfx";
 import { formatGrantDateTime } from "@/lib/referral-invite-format";
-
-const TOKEN_PACKS = [
-  { id: "pack_15", tokens: 15, price: "$2.99", badge: null, description: "15 extra prompts with The Arena" },
-  { id: "pack_35", tokens: 35, price: "$4.99", badge: "POPULAR", description: "35 extra prompts with The Arena - Popular!" },
-  { id: "pack_80", tokens: 80, price: "$9.99", badge: "BEST VALUE", description: "80 extra prompts with The Arena - Tremendous deal!" },
-];
+import { TOKEN_PACKS } from "@/lib/token-packs";
 
 export default function SubscribeScreen() {
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ success?: string; canceled?: string; session_id?: string }>();
+  const params = useLocalSearchParams<{ success?: string; canceled?: string; session_id?: string; pack?: string; plan?: string }>();
+  const requestedPack = TOKEN_PACKS.find((pack) => pack.id === params.pack);
+  const requestedPlan = params.plan === "standard" || params.plan === "vip" ? params.plan : undefined;
+  const purchaseScrollRef = useRef<ScrollView>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<"plans" | "tokens">("tokens");
+  const [selectedTab, setSelectedTab] = useState<"plans" | "tokens">(requestedPlan && !requestedPack ? "plans" : "tokens");
   const [fulfilled, setFulfilled] = useState(false);
   const [winVideoVisible, setWinVideoVisible] = useState(false);
   const [winVideoAmount, setWinVideoAmount] = useState<number | undefined>();
   const [winVideoSource, setWinVideoSource] = useState<string | undefined>();
   const { deviceId, balance, refreshBalance } = useTokens();
   const { soundEnabled } = useSound();
+
+  useEffect(() => {
+    if (requestedPack) setSelectedTab("tokens");
+    else if (requestedPlan) setSelectedTab("plans");
+  }, [requestedPack, requestedPlan]);
 
   const [showReferralHistory, setShowReferralHistory] = useState(false);
   const { data: referralStats } = useQuery<{
@@ -311,6 +314,7 @@ export default function SubscribeScreen() {
       </View>
 
       <ScrollView
+        ref={purchaseScrollRef}
         contentContainerStyle={[
           styles.scrollContent,
           { paddingBottom: insets.bottom + webBottomInset + 20 },
@@ -485,8 +489,19 @@ export default function SubscribeScreen() {
         </Animated.View>
 
         {selectedTab === "plans" ? (
-          <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.plansContainer}>
-            <View style={styles.planCard}>
+          <Animated.View
+            entering={FadeInDown.delay(300).duration(400)}
+            style={styles.plansContainer}
+            onLayout={(event) => {
+              if (requestedPlan && !requestedPack) purchaseScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 16), animated: false });
+            }}
+          >
+            {requestedPlan && (
+              <Text style={styles.requestedChoiceNote} testID="arena-selected-plan">
+                {requestedPlan === "vip" ? "VIP" : "Standard"} selected from the Arena. Review your plan before purchasing.
+              </Text>
+            )}
+            <View style={[styles.planCard, requestedPlan === "standard" && styles.requestedChoice]} testID="subscription-plan-standard">
               <LinearGradient
                 colors={["rgba(212, 164, 32, 0.12)", "rgba(212, 164, 32, 0.03)"]}
                 style={styles.planGradient}
@@ -545,7 +560,7 @@ export default function SubscribeScreen() {
               </LinearGradient>
             </View>
 
-            <View style={[styles.planCard, styles.vipCard]}>
+            <View style={[styles.planCard, styles.vipCard, requestedPlan === "vip" && styles.requestedChoice]} testID="subscription-plan-vip">
               <View style={styles.vipBadge}>
                 <Text style={styles.vipBadgeText}>BEST VALUE</Text>
               </View>
@@ -615,17 +630,33 @@ export default function SubscribeScreen() {
             <Text style={styles.planNote}>Cancel anytime. No questions asked.</Text>
           </Animated.View>
         ) : (
-          <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.packsSection}>
+          <Animated.View
+            entering={FadeInDown.delay(300).duration(400)}
+            style={styles.packsSection}
+            onLayout={(event) => {
+              if (requestedPack) purchaseScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 16), animated: false });
+            }}
+          >
             <Text style={styles.packsTitle}>Need more tokens? Grab a pack!</Text>
+            {requestedPack && (
+              <Text style={styles.requestedChoiceNote} testID="arena-selected-pack">
+                {requestedPack.tokens} tokens selected from the Arena. Tap your pack to continue to checkout.
+              </Text>
+            )}
             {TOKEN_PACKS.map((pack) => (
               <Pressable
                 key={pack.id}
                 onPress={() => handleBuyPack(pack.id)}
                 disabled={isProcessing}
+                accessibilityRole="button"
+                accessibilityLabel={`${requestedPack?.id === pack.id ? "Selected. " : ""}Buy ${pack.tokens} tokens for ${pack.price}`}
+                accessibilityState={{ selected: requestedPack?.id === pack.id, disabled: isProcessing }}
+                testID={`token-pack-${pack.id}`}
                 style={({ pressed }) => [
                   styles.packCard,
                   pressed && styles.packCardPressed,
                   pack.badge === "BEST VALUE" && styles.packCardHighlighted,
+                  requestedPack?.id === pack.id && styles.requestedChoice,
                 ]}
               >
                 <View style={styles.packLeft}>
@@ -834,6 +865,16 @@ const styles = StyleSheet.create({
   },
   plansContainer: {
     gap: 16,
+  },
+  requestedChoice: {
+    borderColor: Colors.gold,
+    borderWidth: 2,
+  },
+  requestedChoiceNote: {
+    color: Colors.gold,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 10,
   },
   planCard: {
     borderRadius: 20,

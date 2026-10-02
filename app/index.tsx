@@ -1601,8 +1601,21 @@ export default function HomeScreen() {
             <Text style={styles.glossyHeaderLabel}>Archive</Text>
           </Pressable>
         </View>
-        <View style={styles.headerBrand} pointerEvents="none" />
-        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 8 }}>
+        <Pressable
+          onPress={handleSecretTap}
+          hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+          accessibilityLabel="Dynamic Creations"
+          testID="dynamic-creations-brand"
+          style={({ pressed }) => [styles.headerBrandButton, pressed && styles.headerBrandPressed]}
+        >
+          <Text style={styles.headerBrandBy}>by</Text>
+          <Image
+            source={require("@/assets/images/dynamic-creations.jpg")}
+            style={styles.headerBrandLogo}
+            resizeMode="contain"
+          />
+        </Pressable>
+        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 5 }}>
           {!welcomePlayedRef.current && (
             <Pressable
               onPress={playWelcomeOnInteraction}
@@ -1627,35 +1640,6 @@ export default function HomeScreen() {
           </Pressable>
         </View>
       </Animated.View>
-
-      <Pressable
-        onPress={handleSecretTap}
-        hitSlop={{ top: 16, bottom: 16, left: 24, right: 24 }}
-        accessibilityLabel="Dynamic Creations"
-        testID="dynamic-creations-brand"
-        style={({ pressed }) => ({
-          alignSelf: "center" as const,
-          flexDirection: "row" as const,
-          alignItems: "center" as const,
-          justifyContent: "center" as const,
-          gap: 8,
-          paddingVertical: 10,
-          paddingHorizontal: 18,
-          marginTop: 4,
-          marginBottom: 6,
-          borderRadius: 999,
-          backgroundColor: pressed ? "rgba(255,215,0,0.12)" : "rgba(255,255,255,0.04)",
-          borderWidth: 1,
-          borderColor: "rgba(255,215,0,0.25)",
-        })}
-      >
-        <Text style={styles.headerBrandBy}>by</Text>
-        <Image
-          source={require("@/assets/images/dynamic-creations.jpg")}
-          style={styles.headerBrandLogo}
-          resizeMode="contain"
-        />
-      </Pressable>
 
       <ScrollView
         ref={mainScrollRef}
@@ -2854,23 +2838,39 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    maxWidth: 1240,
+    alignSelf: "center",
+    width: "100%",
     zIndex: 10,
   },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
+    flexShrink: 0,
   },
-  headerBrand: {
+  headerBrandButton: {
     flex: 1,
+    minWidth: 72,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 4,
+    marginHorizontal: 2,
+    paddingHorizontal: 2,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.035)",
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.2)",
+  },
+  headerBrandPressed: {
+    backgroundColor: "rgba(255,215,0,0.12)",
   },
   headerBrandBy: {
-    fontSize: 14,
+    fontSize: 11,
     color: "rgba(255, 215, 0, 0.85)",
     fontStyle: "italic",
     fontWeight: "600" as const,
@@ -2879,8 +2879,9 @@ const styles = StyleSheet.create({
     textShadowRadius: 6,
   },
   headerBrandLogo: {
-    width: 150,
-    height: 36,
+    width: 104,
+    height: 27,
+    maxWidth: "78%",
   },
   headerRight: {
     flexDirection: "row",
@@ -2943,12 +2944,12 @@ const styles = StyleSheet.create({
   },
   glossyHeaderBtn: {
     alignItems: "center",
-    gap: 3,
+    gap: 2,
   },
   glossyHeaderCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: Colors.gold,
@@ -2962,7 +2963,7 @@ const styles = StyleSheet.create({
     }),
   },
   glossyHeaderLabel: {
-    fontSize: 11,
+    fontSize: 8,
     color: Colors.whiteMuted,
     fontWeight: "600" as const,
     letterSpacing: 0.3,

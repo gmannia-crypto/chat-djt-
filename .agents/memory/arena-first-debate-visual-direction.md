@@ -24,3 +24,11 @@ The proposed “Hear the clash. Take the mic.” entry model is approved for the
 **Why:** The user explicitly asked: “Change the home screen to the proposed model.”
 
 **How to apply:** Preserve the proposed entry hierarchy and keep real navigation, archive, account, rewards, and other existing features available. This visual approval does not authorize changing access rules or pricing.
+
+## Complete proposed flow
+
+The user approved applying all proposed first-debate flow screens, including the access/paywall design, not only the home model.
+
+**Why:** After the home update, the user asked: “Change to all proposed designs.”
+
+**How to apply:** Keep the proposed home, setup, and access screens visually consistent. Preserve the design picker and existing checkout, trial eligibility, token costs, and server authorization. Mockup-only claims that a trial completed or a balance is zero must not replace real account state.
