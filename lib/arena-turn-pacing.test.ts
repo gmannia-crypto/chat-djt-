@@ -1,30 +1,37 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  arenaPreparationLeadMs, arenaResponseTimeoutMs, arenaPlaybackStalled,
-  canPrepareArenaReply, waitForArenaHandoff, withArenaResponseDeadline,
+  arenaResponseTimeoutMs, arenaPlaybackStalled,
+  canPrepareArenaReply, prepareArenaAudio, waitForArenaHandoff, withArenaResponseDeadline,
 } from "./arena-turn-pacing";
 
 const ready = {
-  voiceEnabled: true, confirmedPlaying: true, isCurrentLine: true,
-  remainingMs: 9000, leadMs: 20000, queueLength: 0,
+  voiceEnabled: true, preparingOrPlaying: true, isCurrentLine: true, queueLength: 0,
   hasPreparedReply: false, busy: false,
 };
 
-test("prepare exactly one reply near the end of confirmed current playback", () => {
+test("prepare one reply during synthesis, even before duration/playback is known", () => {
   assert(canPrepareArenaReply(ready));
   for (const state of [
-    { voiceEnabled: false }, { confirmedPlaying: false }, { isCurrentLine: false },
-    { remainingMs: 0 }, { remainingMs: 25000 }, { queueLength: 1 },
+    { voiceEnabled: false }, { preparingOrPlaying: false }, { isCurrentLine: false }, { queueLength: 1 },
     { hasPreparedReply: true }, { busy: true },
   ]) assert.equal(canPrepareArenaReply({ ...ready, ...state }), false, JSON.stringify(state));
 });
 
-test("lead time covers AI plus voice preparation without unlimited lookahead", () => {
-  assert.equal(arenaPreparationLeadMs([]), 20000);
-  assert.equal(arenaPreparationLeadMs([1000]), 10000);
-  assert.equal(arenaPreparationLeadMs([16000]), 20000);
-  assert.equal(arenaPreparationLeadMs([100000]), 25000);
+test("different voices synthesize concurrently; the same voice request is reused", async () => {
+  const cache = new Map<string, Promise<string>>();
+  let loads = 0;
+  let finishFirst!: (uri: string) => void;
+  const first = prepareArenaAudio(cache, "first", () => {
+    loads++;
+    return new Promise((resolve) => { finishFirst = resolve; });
+  });
+  const next = prepareArenaAudio(cache, "next", async () => { loads++; return "next URI"; });
+  assert.equal(await next, "next URI", "next synthesis must not wait behind a cold current voice");
+  assert.equal(prepareArenaAudio(cache, "first", async () => "duplicate"), first);
+  finishFirst("first URI");
+  assert.equal(await first, "first URI");
+  assert.equal(loads, 2);
 });
 
 test("response deadlines retain normal-latency headroom and capped backoff", () => {

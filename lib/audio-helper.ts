@@ -261,6 +261,78 @@ export async function playPrefetchedAudio(
   return sound;
 }
 
+export type PreparedTTSAudio = { audioUri: string; dispose: () => void };
+
+/** Arena-only progressive preparation. Other screens retain complete-blob audio. */
+export async function prepareArenaTTSAudio(endpoint: string, body: Record<string, any>): Promise<PreparedTTSAudio> {
+  if (Platform.OS !== "web") {
+    // Native players already stream URLs with reliable completion reporting.
+    // Do not add a blocking full-body download (or a duplicate warm-up request).
+    return { audioUri: buildTTSUrl(endpoint, body), dispose: () => {} };
+  }
+  if (typeof MediaSource === "undefined" || !MediaSource.isTypeSupported("audio/mpeg")) {
+    return { audioUri: await prefetchTTSAudio(endpoint, body), dispose: () => {} };
+  }
+  const response = await fetchWithTimeout(buildTTSUrl(endpoint, body));
+  if (!response.ok) throw new Error(`Arena TTS failed: ${response.status}`);
+  if (!response.body || !(response.headers.get("content-type") || "").includes("audio/mpeg")) {
+    if (!(response.headers.get("content-type") || "").startsWith("audio/")) throw new Error("Arena TTS returned non-audio");
+    const blob = await response.blob();
+    const audioUri = URL.createObjectURL(blob);
+    return { audioUri, dispose: () => URL.revokeObjectURL(audioUri) };
+  }
+  const media = new MediaSource();
+  const audioUri = URL.createObjectURL(media);
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let source: SourceBuffer | undefined;
+  let ended = false, failed = false, disposed = false;
+  const pump = () => {
+    if (disposed || !source || source.updating || media.readyState !== "open") return;
+    try {
+      const chunk = chunks.shift();
+      if (chunk) source.appendBuffer(chunk as Uint8Array<ArrayBuffer>);
+      else if (ended) media.endOfStream(failed ? "network" : undefined);
+    } catch {
+      failed = true; ended = true;
+      if (media.readyState === "open" && !source.updating) media.endOfStream("decode");
+    }
+  };
+  media.addEventListener("sourceopen", () => {
+    if (disposed || source) return;
+    source = media.addSourceBuffer("audio/mpeg");
+    source.addEventListener("updateend", pump);
+    pump();
+  }, { once: true });
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    clearTimeout(bodyDeadline);
+    chunks.length = 0;
+    reader.cancel().catch(() => {});
+    URL.revokeObjectURL(audioUri);
+  };
+  const bodyDeadline = setTimeout(() => {
+    failed = true; ended = true;
+    reader.cancel().catch(() => {});
+    pump();
+  }, 60000);
+  // Fetch and append continue in the background. Playback may start at the
+  // first MP3 frames, not after the entire 12–27s synthesis response ends.
+  (async () => {
+    try {
+      while (!disposed && !ended) {
+        const part = await reader.read();
+        if (part.done) { ended = true; break; }
+        chunks.push(part.value);
+        pump();
+      }
+    } catch { failed = true; ended = true; }
+    finally { clearTimeout(bodyDeadline); pump(); }
+  })();
+  return { audioUri, dispose };
+}
+
 // Strips markdown-style stage directions (*laughs*, *scoffs, laughing*, etc.)
 // from text before it reaches the TTS engine. These are meant as flavor for
 // on-screen transcript text, not literal words — without this, Fish Audio
