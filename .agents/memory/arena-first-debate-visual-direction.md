@@ -32,3 +32,11 @@ The user approved applying all proposed first-debate flow screens, including the
 **Why:** After the home update, the user asked: “Change to all proposed designs.”
 
 **How to apply:** Keep the proposed home, setup, and access screens visually consistent. Preserve the design picker and existing checkout, trial eligibility, token costs, and server authorization. Mockup-only claims that a trial completed or a balance is zero must not replace real account state.
+
+## Roster-first setup
+
+Make the full-roster choice visible before optional preset debate lineups. Preset lineups can include up to six people.
+
+**Why:** The user said visitors were only seeing the three-person setups and wanted the full-roster option first.
+
+**How to apply:** Keep custom roster selection the primary setup entry; do not present presets as the only way to build a room or treat their six-person size as a new cap on custom rooms.
