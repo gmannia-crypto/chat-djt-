@@ -36,4 +36,22 @@ export const ARENA_SETUP_PRESETS = [
     topic: "Should billionaires have a seat at the table?", category: "wealth",
     personas: ["elon", "berniesanders", "aoc", "trump", "galloway", "claudeanderson"],
   },
+  {
+    id: "geopolitics", number: "07", title: "The Global Order",
+    label: "GEOPOLITICS / POWER", note: "Diplomacy, conflict, and competing powers",
+    topic: "Can a multipolar world be more peaceful than one led by a single superpower?", category: "politics",
+    personas: ["jeffreysachs", "professorjiang", "netanyahu", "galloway", "arikana", "trump"],
+  },
+  {
+    id: "academic", number: "08", title: "The Academic Forum",
+    label: "ACADEMIC / IDEAS", note: "Evidence, economics, and philosophy",
+    topic: "Should universities prioritize free inquiry over preparing students for the job market?", category: "politics",
+    personas: ["cornellwest", "richardwolff", "jeffreysachs", "neiltyson", "claudeanderson", "professorjiang"],
+  },
+  {
+    id: "civil-rights", number: "09", title: "Civil Rights",
+    label: "CIVIL RIGHTS / JUSTICE", note: "Equal rights, opportunity, and accountability",
+    topic: "Is legal equality enough, or does civil rights progress require economic reparations?", category: "politics",
+    personas: ["cornellwest", "claudeanderson", "jascrockett", "timscott", "candace", "malema"],
+  },
 ] as const;

@@ -10310,12 +10310,12 @@ export default function ArenaScreen() {
               }} numberOfLines={1} adjustsFontSizeToFit>Make some current.</Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 9 }}>
                 <View style={{ width: 27, height: 1, backgroundColor: arenaSetupPalette.accent }} />
-                <Text style={{ color: arenaSetupPalette.muted, fontSize: 11, lineHeight: 17 }}>Six live-wire matchups. Up to six voices. No softballs.</Text>
+                <Text style={{ color: arenaSetupPalette.muted, fontSize: 11, lineHeight: 17 }}>{ARENA_SETUP_PRESETS.length} ready-made matchups. Up to six voices. No softballs.</Text>
               </View>
             </View>
             {screenWidth >= 520 && (
               <View style={{ position: "absolute", right: 0, top: 72, flexDirection: "row", alignItems: "center", gap: 9 }}>
-                <Text style={{ color: arenaSetupPalette.red, fontFamily: "PlayfairDisplay_400Regular", fontSize: 31 }}>06</Text>
+                <Text style={{ color: arenaSetupPalette.red, fontFamily: "PlayfairDisplay_400Regular", fontSize: 31 }}>{String(ARENA_SETUP_PRESETS.length).padStart(2, "0")}</Text>
                 <Text style={{ color: arenaSetupPalette.muted, fontSize: 8, fontWeight: "900", letterSpacing: 1, lineHeight: 12 }}>ROOMS{"\n"}READY</Text>
               </View>
             )}
@@ -10517,7 +10517,7 @@ export default function ArenaScreen() {
               <Text style={{ color: arenaSetupPalette.ink, fontFamily: "PlayfairDisplay_700Bold", fontSize: 22, marginTop: 3 }}>Who’s taking the mic?</Text>
               <Text style={{ color: arenaSetupPalette.muted, fontSize: 9, marginTop: 3 }}>Optional ready-made lineups — your room, your rules.</Text>
             </View>
-            <Text style={{ color: arenaSetupPalette.accent, fontFamily: "monospace", fontSize: 10 }}>01 — 06</Text>
+            <Text style={{ color: arenaSetupPalette.accent, fontFamily: "monospace", fontSize: 10 }}>01 — {String(ARENA_SETUP_PRESETS.length).padStart(2, "0")}</Text>
           </View>
 
           <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 10, marginBottom: 16 }}>
