@@ -10092,6 +10092,127 @@ export default function ArenaScreen() {
   }, [showPreDebateSetup, topicCategory]);
 
   if (showPreDebateSetup) {
+    const startDebate = async () => {
+      const canStart = selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !!deviceId;
+      if (!canStart || isStarting) return;
+      setIsStarting(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+      // Both start buttons use the same access checks and setup choices.
+      try {
+        let liveFreeRemaining = freeRemaining;
+        let liveHasSession = hasSession;
+        let liveSessionExpiresAt = sessionExpiresAt;
+        isFreeTrialSessionRef.current = false;
+
+        {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+          try {
+            const res = await fetch(new URL("/api/arena/status", getApiUrl()).toString(), {
+              headers: { "x-device-id": deviceId! },
+              signal: controller.signal,
+            });
+            if (res.ok) {
+              const data = await res.json();
+              liveFreeRemaining = data.freeRemaining ?? liveFreeRemaining;
+              liveHasSession = data.hasSession ?? liveHasSession;
+              setFreeRemaining(liveFreeRemaining);
+              setHasSession(liveHasSession);
+              if (data.sessionExpiresAt) {
+                liveSessionExpiresAt = data.sessionExpiresAt;
+                setSessionExpiresAt(data.sessionExpiresAt);
+              }
+            }
+          } catch {} finally {
+            clearTimeout(timeoutId);
+          }
+        }
+
+        // Top up a shorter paid session to the selected duration before starting.
+        if (liveHasSession) {
+          const desiredMs = selectedDuration * 60 * 1000;
+          const remainingMs = liveSessionExpiresAt ? liveSessionExpiresAt - Date.now() : 0;
+          if (remainingMs < desiredMs) {
+            try {
+              const accessRes = await fetch(new URL("/api/arena/access", getApiUrl()).toString(), {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-device-id": deviceId! },
+                body: JSON.stringify({ duration: selectedDuration }),
+              });
+              const accessData = await accessRes.json();
+              if (accessRes.ok && accessData.granted) {
+                liveHasSession = true;
+                liveSessionExpiresAt = accessData.expiresAt;
+                setHasSession(true);
+                setSessionExpiresAt(accessData.expiresAt);
+                paidSessionStartRef.current = Date.now();
+                sessionDurationMinutesRef.current = accessData.durationMinutes || selectedDuration;
+                refreshBalance();
+              } else if (accessData.error === "insufficient_tokens") {
+                setShowPaywall(true);
+                return;
+              }
+              // Other failures retain the existing session behavior.
+            } catch {}
+          } else {
+            paidSessionStartRef.current = paidSessionStartRef.current || Date.now();
+            sessionDurationMinutesRef.current = selectedDuration;
+          }
+        }
+
+        if (!liveHasSession && liveFreeRemaining <= 0) {
+          try {
+            const trialRes = await fetch(new URL("/api/arena/free-trial", getApiUrl()).toString(), {
+              method: "POST",
+              headers: { "x-device-id": deviceId!, "Content-Type": "application/json" },
+            });
+            if (trialRes.ok) {
+              const trialData = await trialRes.json();
+              if (trialData.granted && trialData.expiresAt) {
+                liveHasSession = true;
+                setHasSession(true);
+                setSessionExpiresAt(trialData.expiresAt);
+                isFreeTrialSessionRef.current = true;
+                sessionDurationMinutesRef.current = trialData.durationMinutes || 2;
+                addSystemMessage(`🎟️ Free trial: ${trialData.durationMinutes || 2} minutes, on the house — too short for an official DC verdict. Buy tokens for a full-length ranked debate!`);
+                paidSessionStartRef.current = Date.now();
+              }
+            } else {
+              setShowPaywall(true);
+              return;
+            }
+          } catch {}
+          if (!liveHasSession) {
+            setShowPaywall(true);
+            return;
+          }
+        }
+
+        sessionEndedRef.current = false;
+        isInterruptingRef.current = false;
+        setIsDCChampion(false);
+
+        if (useCustomTopic && customTopicText.trim()) {
+          setCurrentTopic(customTopicText.trim());
+          currentTopicRef.current = customTopicText.trim();
+        } else if (selectedTopicId) {
+          const topic = dynamicTopics.find((t) => t.id === selectedTopicId);
+          if (topic) {
+            setCurrentTopic(topic.title);
+            currentTopicRef.current = topic.title;
+          }
+        }
+        setShowPreDebateSetup(false);
+        setShowIntro(true);
+      } catch (err) {
+        // Always unlock the start buttons after an unexpected error.
+      } finally {
+        setIsStarting(false);
+      }
+    };
+    const startDisabled = !deviceId || selectedPersonas.length < 2 || (useCustomTopic && !customTopicText.trim()) || isStarting;
+
     return (
       <View style={[s.container, { paddingTop: 0, backgroundColor: arenaSetupPalette.paper }]}>
         <ArenaSetupBackdrop design={arenaSetupDesign.design} />
@@ -10351,6 +10472,27 @@ export default function ArenaScreen() {
                   {premiumUnlocking === pid ? <ActivityIndicator size="small" color={cfg.badgeColor} /> : <Text style={{ color: cfg.badgeColor, fontSize: 12, fontWeight: "900" }}>{cfg.tokenPrice}🪙</Text>}
                 </Pressable>
               ))}
+              <Pressable
+                testID="arena-roster-start-debate"
+                onPress={startDebate}
+                disabled={startDisabled}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: startDisabled, busy: isStarting }}
+                style={{
+                  marginTop: 12, paddingVertical: 15, paddingHorizontal: 16, borderRadius: 12,
+                  alignItems: "center", overflow: "hidden", borderWidth: 1,
+                  borderColor: startDisabled ? arenaSetupPalette.border : arenaSetupPalette.accent,
+                  backgroundColor: arenaSetupPalette.buttonGradient[1], opacity: startDisabled ? 0.4 : 1,
+                }}
+              >
+                <LinearGradient colors={arenaSetupPalette.buttonGradient} locations={[0, 0.46, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+                <Text style={{ color: "#fff", fontSize: 17, fontWeight: "900", letterSpacing: 1.2 }}>
+                  {isStarting ? "LOADING..." : !deviceId ? "CONNECTING..." : "START DEBATE"}
+                </Text>
+                <Text style={{ color: "rgba(255,255,255,0.72)", fontSize: 10, marginTop: 3 }}>
+                  {selectedPersonas.length < 2 ? "Select at least 2 debaters" : `${selectedPersonas.length} debaters selected`}
+                </Text>
+              </Pressable>
             </View>
           )}
 
@@ -11328,141 +11470,11 @@ export default function ArenaScreen() {
           )}
 
           <Pressable
-            onPress={async () => {
-              const canStart = selectedPersonas.length >= 2 && !(useCustomTopic && !customTopicText.trim()) && !!deviceId;
-              if (!canStart || isStarting) return;
-              setIsStarting(true);
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-
-              // Safety net: if anything throws unexpectedly, always unlock the button
-              try {
-                let liveFreeRemaining = freeRemaining;
-                let liveHasSession = hasSession;
-                let liveSessionExpiresAt = sessionExpiresAt;
-                isFreeTrialSessionRef.current = false;
-
-                {
-                  const controller = new AbortController();
-                  const timeoutId = setTimeout(() => controller.abort(), 5000);
-                  try {
-                    const res = await fetch(new URL("/api/arena/status", getApiUrl()).toString(), {
-                      headers: { "x-device-id": deviceId! },
-                      signal: controller.signal,
-                    });
-                    if (res.ok) {
-                      const data = await res.json();
-                      liveFreeRemaining = data.freeRemaining ?? liveFreeRemaining;
-                      liveHasSession = data.hasSession ?? liveHasSession;
-                      setFreeRemaining(liveFreeRemaining);
-                      setHasSession(liveHasSession);
-                      if (data.sessionExpiresAt) {
-                        liveSessionExpiresAt = data.sessionExpiresAt;
-                        setSessionExpiresAt(data.sessionExpiresAt);
-                      }
-                    }
-                  } catch {} finally {
-                    clearTimeout(timeoutId);
-                  }
-                }
-
-                // If the player already has an active paid session but it's SHORTER
-                // than the duration they just picked on this screen (e.g. they
-                // unlocked 5 min earlier, came back, and bumped the chip to 10 min
-                // without re-tapping "Unlock"), top it up to match before starting —
-                // otherwise "START DEBATE" silently reuses the shorter leftover
-                // session and the selected duration is never actually purchased.
-                if (liveHasSession) {
-                  const desiredMs = selectedDuration * 60 * 1000;
-                  const remainingMs = liveSessionExpiresAt ? liveSessionExpiresAt - Date.now() : 0;
-                  if (remainingMs < desiredMs) {
-                    try {
-                      const accessRes = await fetch(new URL("/api/arena/access", getApiUrl()).toString(), {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "x-device-id": deviceId! },
-                        body: JSON.stringify({ duration: selectedDuration }),
-                      });
-                      const accessData = await accessRes.json();
-                      if (accessRes.ok && accessData.granted) {
-                        liveHasSession = true;
-                        liveSessionExpiresAt = accessData.expiresAt;
-                        setHasSession(true);
-                        setSessionExpiresAt(accessData.expiresAt);
-                        paidSessionStartRef.current = Date.now();
-                        sessionDurationMinutesRef.current = accessData.durationMinutes || selectedDuration;
-                        refreshBalance();
-                      } else if (accessData.error === "insufficient_tokens") {
-                        setShowPaywall(true);
-                        return;
-                      }
-                      // Any other failure: fall through and start with whatever
-                      // session already exists rather than blocking the debate.
-                    } catch {}
-                  } else {
-                    paidSessionStartRef.current = paidSessionStartRef.current || Date.now();
-                    sessionDurationMinutesRef.current = selectedDuration;
-                  }
-                }
-
-                if (!liveHasSession && liveFreeRemaining <= 0) {
-                  try {
-                    const trialRes = await fetch(new URL("/api/arena/free-trial", getApiUrl()).toString(), {
-                      method: "POST",
-                      headers: { "x-device-id": deviceId!, "Content-Type": "application/json" },
-                    });
-                    if (trialRes.ok) {
-                      const trialData = await trialRes.json();
-                      if (trialData.granted && trialData.expiresAt) {
-                        liveHasSession = true;
-                        setHasSession(true);
-                        setSessionExpiresAt(trialData.expiresAt);
-                        isFreeTrialSessionRef.current = true;
-                        sessionDurationMinutesRef.current = trialData.durationMinutes || 2;
-                        addSystemMessage(`🎟️ Free trial: ${trialData.durationMinutes || 2} minutes, on the house — too short for an official DC verdict. Buy tokens for a full-length ranked debate!`);
-                        // Keep the client-side session window anchored to the moment
-                        // the free trial was granted. Without this, a later 403 has
-                        // no reliable grace-window baseline and can cut a live arena
-                        // session short.
-                        paidSessionStartRef.current = Date.now();
-                      }
-                    } else {
-                      // Trial not eligible (already purchased before, or sitting on
-                      // plenty of tokens) — send straight to the paywall instead.
-                      setShowPaywall(true);
-                      return;
-                    }
-                  } catch {}
-                  if (!liveHasSession) {
-                    setShowPaywall(true);
-                    return; // finally will reset isStarting
-                  }
-                }
-
-                sessionEndedRef.current = false;
-                isInterruptingRef.current = false;
-                setIsDCChampion(false);
-
-                if (useCustomTopic && customTopicText.trim()) {
-                  setCurrentTopic(customTopicText.trim());
-                  currentTopicRef.current = customTopicText.trim();
-                } else if (selectedTopicId) {
-                  const topic = dynamicTopics.find((t) => t.id === selectedTopicId);
-                  if (topic) {
-                    setCurrentTopic(topic.title);
-                    currentTopicRef.current = topic.title;
-                  }
-                }
-                setShowPreDebateSetup(false);
-                setShowIntro(true);
-              } catch (err) {
-                // Swallow unexpected errors — button will be unlocked by finally
-              } finally {
-                setIsStarting(false);
-              }
-            }}
-            disabled={!deviceId || selectedPersonas.length < 2 || (useCustomTopic && !customTopicText.trim()) || isStarting}
+            onPress={startDebate}
+            disabled={startDisabled}
             accessibilityRole="button"
             accessibilityState={{
-              disabled: !deviceId || selectedPersonas.length < 2 || (useCustomTopic && !customTopicText.trim()) || isStarting,
+              disabled: startDisabled,
               busy: isStarting,
             }}
             style={{
