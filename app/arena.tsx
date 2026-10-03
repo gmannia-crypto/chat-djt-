@@ -60,6 +60,7 @@ import { ArenaAccessGate } from "@/components/arena-access/ArenaAccessGate";
 import { useArenaSetupDesign } from "@/hooks/useArenaSetupDesign";
 import { ARENA_DESIGN_LABELS, getArenaSetupPalette } from "@/lib/arena-setup-design";
 import { ARENA_SETUP_PRESETS } from "@/lib/arena-setup-presets";
+import { arenaResponseTimeoutMs, arenaPreparationLeadMs, canPrepareArenaReply, withArenaResponseDeadline, arenaPlaybackStalled, waitForArenaHandoff } from "@/lib/arena-turn-pacing";
 import type { TokenPackId } from "@/lib/token-packs";
 import {
   markRecordingLieDisqualified,
@@ -5473,6 +5474,8 @@ export default function ArenaScreen() {
   const voiceEnabledRef = useRef(true);
   const recentSpeakersRef = useRef<string[]>([]);
   const ttsGenerationRef = useRef(0);
+  const ttsPlaybackWindowRef = useRef<{ personaId: string; text: string; remainingMs: number } | null>(null);
+  const preparedForPlaybackRef = useRef(false);
   const pendingResponseRef = useRef<string | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number>(5);
   const arenaMemoryContextRef = useRef<string>("");
@@ -5914,6 +5917,8 @@ export default function ArenaScreen() {
 
   const stopAllTTS = useCallback(() => {
     ttsGenerationRef.current += 1;
+    ttsPlaybackWindowRef.current = null;
+    preparedForPlaybackRef.current = false;
     ttsQueueRef.current = [];
     isProcessingTTSRef.current = false;
     forcePlayRef.current = false;
@@ -6014,6 +6019,8 @@ export default function ArenaScreen() {
         continue;
       }
       ttsActiveSpeakerRef.current = item.personaId;
+      ttsPlaybackWindowRef.current = null;
+      preparedForPlaybackRef.current = false;
       if (mountedRef.current) {
         setTtsActiveSpeaker(item.personaId);
       }
@@ -6100,6 +6107,9 @@ export default function ArenaScreen() {
             let earlyResolved = false;
             let prefetchStarted = !!nextItem;
             let playbackStarted = false;
+            let lastProgressAt = Date.now();
+            let lastPosition = -1;
+            let stallTimer: ReturnType<typeof setTimeout> | null = null;
             const fullCleanup = () => {
               sound.setOnPlaybackStatusUpdate(null);
               // Stop BEFORE unload — unloading a still-playing sound without stopping
@@ -6131,9 +6141,21 @@ export default function ArenaScreen() {
             const finish = (didStart: boolean) => {
               if (resolved) return;
               resolved = true;
+              if (stallTimer) clearTimeout(stallTimer);
+              if (myGeneration === ttsGenerationRef.current) ttsPlaybackWindowRef.current = null;
               if (!earlyResolved) resolve(didStart);
               fullCleanup();
             };
+            const checkStall = () => {
+              if (resolved) return;
+              if (myGeneration !== ttsGenerationRef.current || !mountedRef.current ||
+                  !voiceEnabledRef.current || arenaPlaybackStalled(Date.now(), lastProgressAt, playbackStarted)) {
+                finish(playbackStarted);
+                return;
+              }
+              stallTimer = setTimeout(checkStall, 1000);
+            };
+            stallTimer = setTimeout(checkStall, 1000);
             sound.setOnPlaybackStatusUpdate((status: any) => {
               if (status.didJustFinish || status.error) {
                 finish(playbackStarted);
@@ -6145,6 +6167,15 @@ export default function ArenaScreen() {
                 item.onPlaybackStart?.();
               } else if (status.isPlaying) {
                 playbackStarted = true;
+              }
+              if (status.isPlaying && typeof status.positionMillis === "number" && status.positionMillis > lastPosition) {
+                lastPosition = status.positionMillis;
+                lastProgressAt = Date.now();
+              }
+              if (myGeneration === ttsGenerationRef.current) {
+                ttsPlaybackWindowRef.current = status.isPlaying && status.durationMillis > 0
+                  ? { personaId: item.personaId, text: item.text, remainingMs: status.durationMillis - (status.positionMillis || 0) }
+                  : null;
               }
               if (status.isPlaying && status.durationMillis && status.positionMillis) {
                 if (!prefetchStarted && (ttsQueueRef.current.length > 0 || ttsPendingMoreRef.current)) {
@@ -6163,7 +6194,6 @@ export default function ArenaScreen() {
                 }
               }
             });
-            setTimeout(() => finish(playbackStarted), 60000);
           });
           if (started) {
             playbackSucceeded = true;
@@ -6191,17 +6221,18 @@ export default function ArenaScreen() {
       hasMoreItems = ttsQueueRef.current.length > 0;
       if (myGeneration === ttsGenerationRef.current) {
         isProcessingTTSRef.current = false;
-      }
-      if (!hasMoreItems) {
-        forcePlayRef.current = false;
-      }
-      currentSoundRef.current = null;
-      if (mountedRef.current && !hasMoreItems) {
-        setIsPlayingAudio(false);
-        ttsActiveSpeakerRef.current = null;
-        setTtsActiveSpeaker(null);
+        ttsPlaybackWindowRef.current = null;
+        if (!hasMoreItems) forcePlayRef.current = false;
+        currentSoundRef.current = null;
+        if (mountedRef.current && !hasMoreItems) {
+          setIsPlayingAudio(false);
+          ttsActiveSpeakerRef.current = null;
+          setTtsActiveSpeaker(null);
+        }
       }
     }
+    // A muted/reset queue must never clear or restart the NEW generation's queue.
+    if (myGeneration !== ttsGenerationRef.current) return;
     if (hasMoreItems && forcePlayRef.current) {
       processTTSQueue();
     } else if (hasMoreItems && !forcePlayRef.current) {
@@ -7936,13 +7967,34 @@ export default function ArenaScreen() {
     []
   );
 
+  const canPrepareNextArenaTurn = useCallback(() => {
+    const window = ttsPlaybackWindowRef.current;
+    const last = messagesRef.current.filter((m) => !m.isSystem).at(-1);
+    const userTurnDue = userJoinedRef.current && messagesRef.current.filter((m) => !m.isSystem && m.speakerId !== "user").length % 5 === 0;
+    return canPrepareArenaReply({
+      voiceEnabled: voiceEnabledRef.current,
+      confirmedPlaying: !!window && isProcessingTTSRef.current,
+      isCurrentLine: !!window && last?.speakerId === window.personaId && last?.text === window.text,
+      remainingMs: window?.remainingMs ?? 0,
+      leadMs: arenaPreparationLeadMs(arenaResponseLatenciesRef.current),
+      queueLength: ttsQueueRef.current.length,
+      hasPreparedReply: preparedForPlaybackRef.current,
+      busy: !!currentSpeakerRef.current || isInterruptingRef.current || isRapidExchangeRef.current || userTurnDue,
+    });
+  }, []);
+
   const generateAIResponse = useCallback(
-    async (responderId: string, toSpeakerId: string) => {
+    async (responderId: string, toSpeakerId: string, prepareAhead = false) => {
       if (!mountedRef.current || sessionEndedRef.current || !deviceId) return;
       // Claim the speaker slot and stamp this call's generation token.
       // If the watchdog fires mid-fetch and starts a newer call, myToken will
       // no longer match speakTokenRef.current and this call drops its response.
-      const myToken = ++speakTokenRef.current;
+      // Preparation must not invalidate a fireback to the STILL-SPEAKING line.
+      // Advance the conversation generation only when the prepared reply is published.
+      const myToken = prepareAhead ? speakTokenRef.current : ++speakTokenRef.current;
+      const playbackGeneration = ttsGenerationRef.current;
+      const anchorId = messagesRef.current.filter((m) => !m.isSystem).at(-1)?.id;
+      if (prepareAhead) preparedForPlaybackRef.current = true;
       setCurrentSpeaker(responderId);
       currentSpeakerRef.current = responderId;
       ttsPendingMoreRef.current = true;
@@ -8011,17 +8063,28 @@ export default function ArenaScreen() {
         bodyPayload.sessionAltFactTally = sessionAltFactTallyRef.current;
 
         const requestSentAt = Date.now();
-        const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
-          method: "POST",
-          headers,
-          body: JSON.stringify(bodyPayload),
-          signal: abortController.signal,
+        const { res, data } = await withArenaResponseDeadline(async () => {
+          const res = await fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
+            method: "POST",
+            headers,
+            body: JSON.stringify(bodyPayload),
+            signal: abortController.signal,
+          });
+          // Include body reading in the deadline: a connected but stalled JSON
+          // stream must not hold the speaker slot indefinitely either.
+          const data = (res.headers.get("content-type") || "").includes("application/json") ? await res.json() : null;
+          return { res, data };
+        }, abortController, arenaResponseTimeoutMs(arenaResponseLatenciesRef.current, consecutiveWatchdogAbortsRef.current), () => {
+          if (!mountedRef.current || sessionEndedRef.current || speakTokenRef.current !== myToken) return;
+          consecutiveWatchdogAbortsRef.current += 1;
+          setSkippedPersonaId(responderId);
+          setTimeout(() => { if (mountedRef.current) setSkippedPersonaId(null); }, 2000);
+          console.warn(`Arena response deadline: skipped stalled reply from ${responderId}`);
         });
 
         // Track how long this call actually took so the watchdog can size
         // itself to real-world latency instead of a guessed constant.
         arenaResponseLatenciesRef.current = [...arenaResponseLatenciesRef.current, Date.now() - requestSentAt].slice(-20);
-        if (currentTurnAbortControllerRef.current === abortController) currentTurnAbortControllerRef.current = null;
         // A response actually came back — reset the backoff counter so the
         // watchdog doesn't stay inflated once latency has recovered.
         consecutiveWatchdogAbortsRef.current = 0;
@@ -8029,7 +8092,7 @@ export default function ArenaScreen() {
         if (res.status === 403) {
           const errCt = res.headers.get("content-type") || "";
           if (errCt.includes("application/json")) {
-            const errData = await res.json();
+            const errData = data;
             if (errData.error === "arena_locked") {
               setFreeRemaining(0);
               setShowPaywall(true);
@@ -8064,7 +8127,19 @@ export default function ArenaScreen() {
         if (sessionEndedRef.current) return;
         const ct = res.headers.get("content-type") || "";
         if (!ct.includes("application/json")) return;
-        const data = await res.json();
+        if (!data || typeof data.response !== "string" || !data.response.trim()) return;
+        if (prepareAhead) {
+          startPrefetch({ text: data.response, personaId: responderId });
+          const handedOff = await waitForArenaHandoff(
+            () => mountedRef.current && isRunningRef.current && !sessionEndedRef.current &&
+              speakTokenRef.current === myToken &&
+              (!voiceEnabledRef.current || ttsGenerationRef.current === playbackGeneration) &&
+              messagesRef.current.filter((m) => !m.isSystem).at(-1)?.id === anchorId,
+            () => voiceEnabledRef.current && (isProcessingTTSRef.current || ttsQueueRef.current.length > 0 || !!interruptActiveSpeakerRef.current),
+          );
+          if (!handedOff) return;
+        }
+        if (!mountedRef.current || sessionEndedRef.current || speakTokenRef.current !== myToken) return;
         const persona = getPersona(responderId);
 
         if (data.freeRemaining !== undefined) setFreeRemaining(data.freeRemaining);
@@ -8114,6 +8189,7 @@ export default function ArenaScreen() {
         }
         // ──────────────────────────────────────────────────────────────────────
 
+        if (prepareAhead) speakTokenRef.current += 1;
         addMessage({
           id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
           speakerId: responderId,
@@ -8200,12 +8276,16 @@ export default function ArenaScreen() {
         }
         ttsPendingMoreRef.current = false;
       } finally {
-        if (currentTurnAbortControllerRef.current === abortController) currentTurnAbortControllerRef.current = null;
+        const ownsTurn = currentTurnAbortControllerRef.current === abortController;
+        if (ownsTurn) {
+          currentTurnAbortControllerRef.current = null;
+          ttsPendingMoreRef.current = false;
+        }
         if (mountedRef.current) {
           // Only release the speaker lock if it still belongs to THIS call.
           // A stale finally (from a slow fetch that lost the token race) must
           // not null out the lock that a newer, valid call already claimed.
-          if (currentSpeakerRef.current === responderId) {
+          if (ownsTurn && currentSpeakerRef.current === responderId) {
             setCurrentSpeaker(null);
             currentSpeakerRef.current = null;
           }
@@ -8641,8 +8721,10 @@ export default function ArenaScreen() {
       const requestReaction = debateModeRef.current === "savage" && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
 
       const rapidSentAt = Date.now();
-      const res = await fetch(new URL("/api/arena/rapid-exchange", getApiUrl()).toString(), {
+      const rapidController = new AbortController();
+      const res = await withArenaResponseDeadline(() => fetch(new URL("/api/arena/rapid-exchange", getApiUrl()).toString(), {
         method: "POST",
+        signal: rapidController.signal,
         headers,
         body: JSON.stringify({
           personaAId,
@@ -8653,6 +8735,8 @@ export default function ArenaScreen() {
           debateMode: debateModeRef.current,
           requestReaction,
         }),
+      }), rapidController, arenaResponseTimeoutMs(arenaResponseLatenciesRef.current), () => {
+        console.warn("Arena rapid exchange timed out; returning to ordinary turns");
       });
 
       if (res.status === 403 && mountedRef.current) {
@@ -9003,14 +9087,20 @@ export default function ArenaScreen() {
     }
   }, [deviceId, addMessage, queueTTS, showUserInput]);
 
-  const decideNextSpeaker = useCallback(async () => {
+  const decideNextSpeaker = useCallback(async (prepareAhead = false) => {
     if (!isRunningRef.current || currentSpeakerRef.current) return;
     if (isInterruptingRef.current) return;
     if (isRapidExchangeRef.current) return;
     const msgs = messagesRef.current.filter((m) => !m.isSystem && m.speakerId !== "user");
-    if (msgs.length === 0) return;
     const active = selectedPersonasRef.current;
     if (active.length < 2) return;
+    if (msgs.length === 0) {
+      // A timed-out opening must retry, not leave the scheduler polling an
+      // empty transcript forever with nobody able to become the first speaker.
+      const starter = active.includes("trump") ? "trump" : active[0];
+      await generateAIResponse(starter, active.find((id) => id !== starter)!);
+      return;
+    }
 
     if (userJoinedRef.current && !showUserInput && msgs.length > 0 && msgs.length % 5 === 0 && Math.random() < 0.4) {
       const asker = active[Math.floor(Math.random() * active.length)];
@@ -9025,7 +9115,7 @@ export default function ArenaScreen() {
     if (pendingTarget && active.includes(pendingTarget) && pendingTarget !== lastMsg.speakerId) {
       pendingResponseRef.current = null;
       if (mountedRef.current) {
-        await generateAIResponse(pendingTarget, lastMsg.speakerId);
+        await generateAIResponse(pendingTarget, lastMsg.speakerId, prepareAhead);
         recentSpeakersRef.current = [...recentSpeakersRef.current, pendingTarget].slice(-4);
       }
       return;
@@ -9086,6 +9176,15 @@ export default function ArenaScreen() {
         (a === lastSpeaker && b === nextSpeaker) || (b === lastSpeaker && a === nextSpeaker)
       );
       if (isHeatedPair && !isRapidExchangeRef.current && rapidExchangeCooldownRef.current < Date.now() && Math.random() < 0.18) {
+        if (prepareAhead) {
+          preparedForPlaybackRef.current = true;
+          const token = speakTokenRef.current;
+          const handedOff = await waitForArenaHandoff(
+            () => mountedRef.current && isRunningRef.current && !sessionEndedRef.current && speakTokenRef.current === token,
+            () => voiceEnabledRef.current && (isProcessingTTSRef.current || ttsQueueRef.current.length > 0),
+          );
+          if (!handedOff) return;
+        }
         await triggerRapidExchange(lastSpeaker, nextSpeaker);
         recentSpeakersRef.current = [...recentSpeakersRef.current, nextSpeaker].slice(-4);
         return;
@@ -9108,11 +9207,13 @@ export default function ArenaScreen() {
           const preHeaders: Record<string, string> = { "Content-Type": "application/json" };
           if (deviceId) preHeaders["x-device-id"] = deviceId;
           const prefetchSentAt = Date.now();
+          const interruptController = new AbortController();
           // Live overlapping reaction (Savage mode only) — gated the same way as
           // ordinary turns (Savage mode + shared cooldown).
           const preRequestReaction = debateModeRef.current === "savage" && turnsSinceReactionRef.current >= 2 && Math.random() < 0.6;
-          interruptPrefetch = fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
+          interruptPrefetch = withArenaResponseDeadline(() => fetch(new URL("/api/arena/respond", getApiUrl()).toString(), {
             method: "POST",
+            signal: interruptController.signal,
             headers: preHeaders,
             body: JSON.stringify({
               responderId: preInterrupter,
@@ -9149,12 +9250,14 @@ export default function ArenaScreen() {
               return null;
             }
             return r.ok ? { interrupter: preInterrupter, data: await r.json() } : null;
+          }), interruptController, arenaResponseTimeoutMs(arenaResponseLatenciesRef.current), () => {
+            console.warn("Arena interruption prefetch timed out; releasing the turn");
           })
             .catch(() => null);
         }
       }
 
-      await generateAIResponse(chosen.id, lastMsg.speakerId);
+      await generateAIResponse(chosen.id, lastMsg.speakerId, prepareAhead);
       recentSpeakersRef.current = [...recentSpeakersRef.current, chosen.id].slice(-4);
 
       if (interruptPrefetch && mountedRef.current && isRunningRef.current) {
@@ -9200,7 +9303,8 @@ export default function ArenaScreen() {
       // Let audible dialogue finish before generating another ordinary turn.
       // Otherwise the fast scheduler advances text while replies accumulate
       // behind older voices instead of sounding like a back-and-forth.
-      if (voiceEnabledRef.current && (isProcessingTTSRef.current || ttsQueueRef.current.length > 0 || isRapidExchangeRef.current)) {
+      const prepareAhead = canPrepareNextArenaTurn();
+      if (voiceEnabledRef.current && (isProcessingTTSRef.current || ttsQueueRef.current.length > 0 || isRapidExchangeRef.current) && !prepareAhead) {
         if (watchdogTimer) { clearTimeout(watchdogTimer); watchdogTimer = null; }
         conversationTimerRef.current = setTimeout(waitForClear, 100);
         return;
@@ -9250,14 +9354,18 @@ export default function ArenaScreen() {
       const delay = 20 + Math.random() * 30;
       conversationTimerRef.current = setTimeout(async () => {
         if (!mountedRef.current || sessionEndedRef.current) return;
-        await decideNextSpeaker();
+        if (prepareAhead && !canPrepareNextArenaTurn()) {
+          scheduleNext();
+          return;
+        }
+        await decideNextSpeaker(prepareAhead);
         if (mountedRef.current && isRunningRef.current && !sessionEndedRef.current) {
           scheduleNext();
         }
       }, delay);
     };
     waitForClear();
-  }, [decideNextSpeaker]);
+  }, [decideNextSpeaker, canPrepareNextArenaTurn]);
 
   useEffect(() => { scheduleNextRef.current = scheduleNext; }, [scheduleNext]);
 
