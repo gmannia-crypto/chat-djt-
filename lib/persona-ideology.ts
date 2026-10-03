@@ -31,6 +31,7 @@ export type IdeologyCamp =
   | "neutral";
 
 export const PERSONA_CAMP: Record<string, IdeologyCamp> = {
+  maponga: "black-empowerment",
   // ── MAGA / American right ──────────────────────────────────────────────
   trump: "maga-right",
   bannon: "maga-right",

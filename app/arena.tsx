@@ -117,6 +117,7 @@ const PERSONA_CATEGORY_MAP: Record<string, PersonaCategory> = {
   melania: "firstlady",
   stephena: "commentator",
   malema: "activist",
+  maponga: "activist",
   hannity: "journalist",
   neiltyson: "scientist",
   errol: "politician",
@@ -191,6 +192,7 @@ const PERSONA_GROUPS: Record<string, IdeologyGroupId[]> = {
   claudeanderson: ["blackempowerment"], drbenj: ["blackempowerment"], bishopfundme: ["blackempowerment"], pastormanning: ["blackempowerment"],
   errol: ["imperialistwest"],
   cornellwest: ["independentleft"],
+  maponga: ["globalsouth", "blackempowerment"],
 };
 
 function getGroupRoster(groupId: IdeologyGroupId): string[] {
@@ -1632,6 +1634,27 @@ const ARENA_PERSONAS: Record<string, ArenaPersona> = {
     triggerWords: {
       positive: ["warrior", "lethality", "military", "trump", "america", "faith", "standards", "merit", "combat"],
       negative: ["unqualified", "disgraced", "dei", "woke general", "drunk", "abuser", "fraud"],
+    },
+  },
+  maponga: {
+    id: "maponga",
+    name: "Joshua Maponga",
+    shortName: "Maponga",
+    color: "#C7A64B",
+    faction: "wildcard",
+    image: require("@/assets/images/persona-maponga.png"),
+    personality: {
+      energy: 65, aggression: 55, humor: 35,
+      catchphrases: ["Who taught you to think that way?", "A tree cannot grow without its roots.", "Let us examine the thought behind the thought."],
+    },
+    relationships: {
+      malema: { sentiment: 80 }, arikana: { sentiment: 85 },
+      claudeanderson: { sentiment: 75 }, cornellwest: { sentiment: 65 },
+      trump: { sentiment: 15 }, galloway: { sentiment: 65 },
+    },
+    triggerWords: {
+      positive: ["African sovereignty", "land", "self-reliance", "roots"],
+      negative: ["colonialism", "inferior", "primitive", "dependency"],
     },
   },
   professorjiang: {
@@ -3077,6 +3100,7 @@ import { BOXING_EXCLUSIVE_IDS } from "@/lib/boxing-personas";
 
 const PERSONA_IDS = ["trump", "jdvance", "elon", "errol", "netanyahu", "ruckus", "galloway", "mcconnell", "carville", "maddow", "omar", "tlaib", "biden", "rosie", "berniemc", "carlin", "graham", "megynkelly", "pambondi", "candace", "joyreid", "miller", "jimjordan", "shahidbolson", "leavitt", "erikakirk", "loomer", "bannon", "stephena", "malema", "hannity", "neiltyson", "jesseleepetersen", "shannon", "ivanka", "claudeanderson", "jascrockett", "aoc", "pressley", "joerogan", "timscott", "kennedy", "petehegseth", "drbenj", "billclinton", "hillaryclinton", "marcorubio", "desantis", "tuckercarlson", "bishopfundme", "cornellwest", "piersmorgan", "scottjennings", "mikabrzezinski", "joescarborough", "richardwolff", "berniesanders", "pastormanning", "clarke", "donalds", "arikana", "jeffreysachs", "khalidmuhammad", "professorjiang"];
 // Cartoon-style image filter — vivid posterized look on web
+PERSONA_IDS.push("maponga");
 const CARTOON_FILTER = Platform.OS === "web"
   ? ({ filter: "contrast(1.35) saturate(1.85) brightness(1.03)" } as any)
   : {};
@@ -3240,6 +3264,7 @@ const TOPIC_COLOR_MAP: Record<string, string> = {
 };
 
 const PERSONA_ALIASES: Record<string, string[]> = {
+  maponga: ["maponga", "muponga", "joshua maponga", "joshua muponga"],
   trump: ["trump", "donald", "mr president", "the president"],
   elon: ["elon", "musk"],
   netanyahu: ["netanyahu", "bibi", "benjamin"],
@@ -8649,6 +8674,7 @@ export default function ArenaScreen() {
 
   const triggerRapidExchange = useCallback(async (personaAId: string, personaBId: string) => {
     if (!mountedRef.current || !isRunningRef.current || sessionEndedRef.current) return;
+    const exchangeToken = speakTokenRef.current;
     if (rapidExchangeCooldownRef.current > Date.now()) return;
     if (isRapidExchangeRef.current) return;
     isRapidExchangeRef.current = true;
@@ -8713,6 +8739,7 @@ export default function ArenaScreen() {
       if (!res.ok || !mountedRef.current || !isRunningRef.current) return;
       const data = await res.json();
       const lines: Array<{ personaId: string; text: string }> = data.lines || [];
+      if (speakTokenRef.current !== exchangeToken || sessionEndedRef.current) return;
 
       // The exchange only ever involves these two personas — the AI's JSON
       // response is untrusted, so any line claiming a different (even
@@ -8723,7 +8750,7 @@ export default function ArenaScreen() {
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        if (!mountedRef.current || !isRunningRef.current) break;
+        if (!mountedRef.current || !isRunningRef.current || sessionEndedRef.current || speakTokenRef.current !== exchangeToken) break;
         const wasCoerced = !exchangeSpeakers.includes(line.personaId);
         const speakerId = wasCoerced ? expectedSpeaker : line.personaId;
         if (wasCoerced) {
@@ -9232,6 +9259,14 @@ export default function ArenaScreen() {
     let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
     const waitForClear = () => {
       if (sessionEndedRef.current) return;
+      // Let audible dialogue finish before generating another ordinary turn.
+      // Otherwise the fast scheduler advances text while replies accumulate
+      // behind older voices instead of sounding like a back-and-forth.
+      if (voiceEnabledRef.current && (isProcessingTTSRef.current || ttsQueueRef.current.length > 0 || isRapidExchangeRef.current)) {
+        if (watchdogTimer) { clearTimeout(watchdogTimer); watchdogTimer = null; }
+        conversationTimerRef.current = setTimeout(waitForClear, 100);
+        return;
+      }
       if (isInterruptingRef.current || currentSpeakerRef.current) {
         if (!watchdogTimer) {
           watchdogTimer = setTimeout(() => {
@@ -13017,7 +13052,7 @@ export default function ArenaScreen() {
                 { label: "🎙  PODCASTERS & STRATEGISTS", ids: ["galloway", "candace", "carville", "bannon", "joerogan"], mysteryIds: ["alexjones"] },
                 { label: "🎭  COMEDIANS", ids: ["berniemc", "rosie", ...(!isHidden("carlin") ? ["carlin"] : [])], mysteryIds: [] },
                 { label: "💻  TECH", ids: ["elon"], mysteryIds: [] },
-                { label: "✊  COMMENTATORS & ACTIVISTS", ids: ["stephena", "jesseleepetersen", "shannon", "neiltyson", "malema", "claudeanderson", ...(!isHidden("drbenj") ? ["drbenj"] : []), "bishopfundme", "cornellwest", "clarke", "professorjiang"], mysteryIds: [] },
+                { label: "✊  COMMENTATORS & ACTIVISTS", ids: ["stephena", "jesseleepetersen", "shannon", "neiltyson", "malema", "claudeanderson", ...(!isHidden("drbenj") ? ["drbenj"] : []), "bishopfundme", "cornellwest", "clarke", "professorjiang", "maponga"], mysteryIds: [] },
                 { label: "👥  FAMILY & OTHERS", ids: ["errol", "ivanka"], mysteryIds: ["melania"] },
               ];
               const lockedMysteryIds = MYSTERY_PERSONA_IDS.filter((id) => !unlockedMystery.includes(id));

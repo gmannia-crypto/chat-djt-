@@ -456,6 +456,7 @@ function getAggression(id: string) { return PERSONA_AGGRESSION[id] ?? PERSONA_AG
 // Fired when a persona's fireback chain hits maxChain — the last-gasp physical threat
 // before the moderator is forced to step in and restore order.
 const PERSONA_SQUABBLE_THREATS: Record<string, string[]> = {
+  maponga: ["Volume is not an argument. Let us return to the thought behind the thought.", "You cannot uproot a tree by shouting at its branches. Address my point."],
   // ── Already covered ───────────────────────────────────────────────────────
   carville:        ["You keep talking like that and I will drag you out of this chair, you son of a bitch!", "Say that one more time and we will finish this in the parking lot, I promise you that!"],
   trump:           ["I've dealt with tougher guys than you in Atlantic City — you want to go? Let's go!", "Keep it up and I'll have security remove you. Personally. With my hands."],
@@ -976,6 +977,7 @@ const PERSONA_PORTRAITS: Record<string, any> = {
   clarke: require("@/assets/images/persona-clarke.png"),
   tlaib:        require("@/assets/images/persona-tlaib.png"),
   professorjiang: require("@/assets/images/persona-professorjiang.png"),
+  maponga: require("@/assets/images/persona-maponga.png"),
   mikabrzezinski: require("@/assets/images/persona-mikabrzezinski.jpg"),
   joescarborough: require("@/assets/images/persona-joescarborough.jpg"),
   jimlampley:    require("@/assets/images/persona-jimlampley.jpg"),

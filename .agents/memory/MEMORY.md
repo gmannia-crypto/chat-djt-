@@ -26,3 +26,4 @@
 - [Arena first-debate visual direction](arena-first-debate-visual-direction.md) — user liked the editorial Arena redesign and requested a translucent moving liquid background; preserve that direction in future integration.
 - [RN Web prop forwarding](react-native-web-css-wrappers.md) — verify DOM forwarding for themes, motion, and accessibility states; nested native state can be dropped on web.
 - [Home preview data budget](home-preview-data-budget.md) — user wants varied, name-addressed persona pitches, but limits speaking to about four personas to save data.
+- [Arena audible turn pacing](arena-audible-turn-pacing.md) — ordinary turns follow spoken playback; deliberate interruptions stay separate, and muted mode keeps advancing text.
