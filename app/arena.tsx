@@ -56,6 +56,7 @@ import { CashAppDonate } from "@/components/CashAppDonate";
 import { OddsTimeline } from "@/components/OddsTimeline";
 import { ArenaSetupBackdrop } from "@/components/arena-setup/ArenaSetupBackdrop";
 import { ArenaDesignPicker } from "@/components/arena-setup/ArenaDesignPicker";
+import { ArenaTopicPicker } from "@/components/arena-setup/ArenaTopicPicker";
 import { ArenaAccessGate } from "@/components/arena-access/ArenaAccessGate";
 import { useArenaSetupDesign } from "@/hooks/useArenaSetupDesign";
 import { ARENA_DESIGN_LABELS, getArenaSetupPalette } from "@/lib/arena-setup-design";
@@ -9898,6 +9899,7 @@ export default function ArenaScreen() {
         body: JSON.stringify({
           winnerId,
           winnerName,
+          resultSource: explicitWinnerId ? "dc_verdict" : "audience",
           winnerPoints: winnerPts,
           trumpPoints: trumpPts,
           customerName,
@@ -10212,6 +10214,18 @@ export default function ArenaScreen() {
       }
     };
     const startDisabled = !deviceId || selectedPersonas.length < 2 || (useCustomTopic && !customTopicText.trim()) || isStarting;
+    const renderTopicPicker = (testID: string) => (
+      <ArenaTopicPicker
+        testID={testID}
+        topics={dynamicTopics}
+        selectedTopicId={selectedTopicId}
+        useCustomTopic={useCustomTopic}
+        customTopicText={customTopicText}
+        onSelectTopic={setSelectedTopicId}
+        onCustomMode={setUseCustomTopic}
+        onCustomText={setCustomTopicText}
+      />
+    );
 
     return (
       <View style={[s.container, { paddingTop: 0, backgroundColor: arenaSetupPalette.paper }]}>
@@ -10472,6 +10486,7 @@ export default function ArenaScreen() {
                   {premiumUnlocking === pid ? <ActivityIndicator size="small" color={cfg.badgeColor} /> : <Text style={{ color: cfg.badgeColor, fontSize: 12, fontWeight: "900" }}>{cfg.tokenPrice}🪙</Text>}
                 </Pressable>
               ))}
+              {renderTopicPicker("arena-roster-topic-picker")}
               <Pressable
                 testID="arena-roster-start-debate"
                 onPress={startDebate}
@@ -11469,7 +11484,9 @@ export default function ArenaScreen() {
             </View>
           )}
 
+          {renderTopicPicker("arena-start-topic-picker")}
           <Pressable
+            testID="arena-start-debate"
             onPress={startDebate}
             disabled={startDisabled}
             accessibilityRole="button"

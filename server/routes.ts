@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { buildDCVerdictRoastPrompt, dcVerdictRoastFallback, guardDCVerdictRoast } from "./arena-roast-verdict";
 import { registerHomePersonaPreview } from "./home-persona-preview";
 import { MAPONGA_PROMPT, TRUMP_GOLF_AND_IQ_STYLE } from "./persona-additions";
 import { createServer, type Server } from "node:http";
@@ -12616,6 +12617,10 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
 
   const roastRateLimit: Record<string, number> = {};
   app.post("/api/arena/roast", async (req, res) => {
+    const isDCVerdict = req.body.resultSource === "dc_verdict";
+    const roastFallback = () => isDCVerdict
+      ? dcVerdictRoastFallback(req.body.winnerId, req.body.winnerName || "the winner")
+      : "Believe me, this whole thing was RIGGED. I actually won by a LANDSLIDE. Everybody knows it!";
     try {
       const deviceId = req.headers["x-device-id"] as string;
       if (!deviceId) return res.status(400).json({ error: "Device ID required" });
@@ -12642,7 +12647,9 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
       }
 
       const systemPrompt = getArenaPersonaPrompt("trump");
-      const userPrompt = `The Political Arena debate just ended. The audience voted on who made the best points. Here are the final results:\n${leaderboardText}\n\nThe WINNER is ${winnerName} with ${winnerPoints} points.${trumpLost ? ` You only got ${trumpPoints} points — you LOST to ${winnerName}. You are FURIOUS and HUMILIATED.` : ` You got ${trumpPoints} points.`}\n\nThe viewer who judged this is named "${customerName}". They gave ${winnerName} the most points${trumpLost ? " and barely voted for you" : ""}.${winHistoryText}\n\nNow ROAST both the winner AND the viewer "${customerName}" by name. Be SAVAGE, FUNNY, and totally in character. Attack ${winnerName} for thinking they won anything — "you didn't win, this was RIGGED!" Attack ${customerName} for their terrible judgment — "you have the worst taste in debate I've ever seen, ${customerName}!" If you have a LOSING win record, EXPLODE about how it's rigged. If you're WINNING, brag MERCILESSLY. Be absolutely brutal but entertaining. 3-4 sentences max.`;
+      const userPrompt = isDCVerdict
+        ? buildDCVerdictRoastPrompt(roastWinnerId, winnerName, winHistoryText)
+        : `The Political Arena debate just ended. The audience voted on who made the best points. Here are the final results:\n${leaderboardText}\n\nThe WINNER is ${winnerName} with ${winnerPoints} points.${trumpLost ? ` You only got ${trumpPoints} points — you LOST to ${winnerName}. You are FURIOUS and HUMILIATED.` : ` You got ${trumpPoints} points.`}\n\nThe viewer who judged this is named "${customerName}". They gave ${winnerName} the most points${trumpLost ? " and barely voted for you" : ""}.${winHistoryText}\n\nNow ROAST both the winner AND the viewer "${customerName}" by name. Be SAVAGE, FUNNY, and totally in character. Attack ${winnerName} for thinking they won anything — "you didn't win, this was RIGGED!" Attack ${customerName} for their terrible judgment — "you have the worst taste in debate I've ever seen, ${customerName}!" If you have a LOSING win record, EXPLODE about how it's rigged. If you're WINNING, brag MERCILESSLY. Be absolutely brutal but entertaining. 3-4 sentences max.`;
 
       const completion = await getClient().chat.completions.create({
         model: getFastModel(),
@@ -12653,13 +12660,14 @@ Return ONLY valid JSON: {"score": 0-100, "reason": "short 1-sentence explanation
         max_completion_tokens: 200,
         temperature: 1.0,
       });
-      let roast = completion.choices[0]?.message?.content || "Believe me, nobody won here. RIGGED!";
+      let roast = completion.choices[0]?.message?.content || roastFallback();
       roast = stripBannedCliches(roast.replace(/^["']|["']$/g, "").replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim(), "trump");
       roast = roast.replace(/(?:the\s+)?epstein\s+war/gi, "the Iran war");
+      if (isDCVerdict) roast = guardDCVerdictRoast(roast, roastWinnerId, winnerName);
       res.json({ roast });
     } catch (error: any) {
       console.error("Arena roast error:", error);
-      res.json({ roast: "Believe me, this whole thing was RIGGED. I actually won by a LANDSLIDE. Everybody knows it!" });
+      res.json({ roast: roastFallback() });
     }
   });
 
