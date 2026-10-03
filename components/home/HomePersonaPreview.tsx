@@ -14,6 +14,12 @@ const PORTRAITS: Record<HomePreviewPersonaId, number> = {
   galloway: require("@/assets/images/persona-galloway.png"),
   malcolmx: require("@/assets/images/persona-malcolmx.jpg"),
   cornellwest: require("@/assets/images/persona-cornellwest.jpg"),
+  maponga: require("@/assets/images/persona-maponga.png"),
+  candace: require("@/assets/images/persona-candace.png"),
+  rogan: require("@/assets/images/persona-rogan.png"),
+  musk: require("@/assets/images/persona-musk.png"),
+  berniesanders: require("@/assets/images/persona-berniesanders.jpg"),
+  tuckercarlson: require("@/assets/images/persona-tuckercarlson.jpg"),
 };
 
 type Pair = { left: HomePreviewPersonaId; right: HomePreviewPersonaId };
@@ -255,16 +261,13 @@ export function HomePersonaPreview() {
         <View style={styles.questionMark}><Text style={styles.questionMarkText}>?</Text></View>
       </View>
 
-      <View style={[styles.speakerRow, compact && styles.speakerColumn]}>
-        {renderSpeaker("left")}
-        {!compact && <View style={styles.versus}><View style={styles.versusRule} /><Text style={styles.versusText}>VS</Text><View style={styles.versusRule} /></View>}
-        {renderSpeaker("right")}
-      </View>
-
-      <View style={[styles.callIn, compact && styles.callInCompact]}>
+      <View style={[styles.callIn, compact && styles.callInCompact]} testID="home-preview-name-band">
         <View style={styles.callInCopy}>
-          <Text style={styles.callInLabel}>MAKE IT A CALL-IN</Text>
-          <Text style={styles.callInHint}>They’ll make their case to you by name.</Text>
+          <Text style={styles.callInLabel}>CALL-IN NAME · START HERE</Text>
+          <Text style={styles.callInHint} testID="home-preview-name-instructions">
+            Optional. Enter your name first, then pick a persona and tap Listen to hear them address you by name.
+          </Text>
+          <Text style={styles.rosterHint}>{HOME_PREVIEW_PERSONAS.length} voices · Tap the list icon to choose, or shuffle to explore.</Text>
         </View>
         <TextInput
           value={name}
@@ -278,6 +281,12 @@ export function HomePersonaPreview() {
           accessibilityLabel="Optional name for personalized voice samples"
           testID="home-preview-name"
         />
+      </View>
+
+      <View style={[styles.speakerRow, compact && styles.speakerColumn]}>
+        {renderSpeaker("left")}
+        {!compact && <View style={styles.versus}><View style={styles.versusRule} /><Text style={styles.versusText}>VS</Text><View style={styles.versusRule} /></View>}
+        {renderSpeaker("right")}
       </View>
 
       <View style={[styles.usageRow, compact && styles.usageColumn]}>
@@ -419,11 +428,12 @@ const styles = StyleSheet.create({
   versus: { width: 43, flexShrink: 0, alignItems: "center", justifyContent: "center", gap: 5 },
   versusRule: { width: 1, height: 17, backgroundColor: "rgba(232,191,102,0.26)" },
   versusText: { color: "#e5c782", fontFamily: "PlayfairDisplay_700Bold", fontStyle: "italic", fontSize: 12 },
-  callIn: { minHeight: 66, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 19, paddingVertical: 11, borderTopWidth: 1, borderColor: "rgba(240,226,204,0.10)", backgroundColor: "#211f1c" },
-  callInCompact: { alignItems: "stretch", flexDirection: "column", gap: 8, paddingHorizontal: 13 },
-  callInCopy: { flex: 1 },
-  callInLabel: { color: "#e8bf66", fontSize: 8, fontWeight: "900", letterSpacing: 1.2 },
-  callInHint: { color: "#a99e90", fontSize: 9, marginTop: 4 },
+  callIn: { minHeight: 82, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, paddingHorizontal: 19, paddingVertical: 13, borderTopWidth: 1, borderBottomWidth: 1, borderColor: "rgba(240,226,204,0.10)", backgroundColor: "#211f1c" },
+  callInCompact: { alignItems: "stretch", flexDirection: "column", gap: 9, paddingHorizontal: 13 },
+  callInCopy: { flex: 1, minWidth: 0 },
+  callInLabel: { color: "#e8bf66", fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
+  callInHint: { color: "#d0c4b4", fontSize: 11, lineHeight: 16, marginTop: 5 },
+  rosterHint: { color: "#a99e90", fontSize: 9, lineHeight: 13, marginTop: 4 },
   nameInput: { width: 196, height: 37, borderWidth: 1, borderColor: "rgba(232,191,102,0.27)", borderRadius: 4, paddingHorizontal: 10, color: "#f3e4cf", backgroundColor: "#171614", fontSize: 12, outlineStyle: "none" } as object,
   nameInputCompact: { width: "100%" },
   usageRow: { minHeight: 43, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, paddingHorizontal: 19, paddingVertical: 8, borderTopWidth: 1, borderColor: "rgba(240,226,204,0.08)" },

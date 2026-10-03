@@ -9,6 +9,12 @@ export const HOME_PREVIEW_PERSONAS = [
   { id: "galloway", name: "George Galloway", pitch: "Choose me for a fearless argument. I'll challenge the powerful, demand the evidence, and never dodge a difficult question." },
   { id: "malcolmx", name: "Malcolm X", pitch: "Choose me for clarity and conviction. I'll question the assumptions, confront injustice, and insist that we think for ourselves." },
   { id: "cornellwest", name: "Cornel West", pitch: "Pick me for a debate with heart. We'll bring truth, justice, and love for everyday people into the conversation." },
+  { id: "maponga", name: "Joshua Maponga", pitch: "Choose me to question inherited ideas, put Africa at the center, and challenge whose story you've been taught to believe." },
+  { id: "candace", name: "Candace Owens", pitch: "Pick me for a blunt argument. I'll challenge the popular narrative, ask uncomfortable questions, and make you defend your position." },
+  { id: "rogan", name: "Joe Rogan", pitch: "Choose me if you're curious. Let's question everything, explore unexpected ideas, and find out where the conversation takes us." },
+  { id: "musk", name: "Elon Musk", pitch: "Pick me to think bigger. We'll debate technology, first principles, and what it actually takes to build the future." },
+  { id: "berniesanders", name: "Bernie Sanders", pitch: "Choose me to take on corporate power. We'll talk wages, healthcare, and why working people deserve a fair deal." },
+  { id: "tuckercarlson", name: "Tucker Carlson", pitch: "Pick me to question the official story. I'll press the powerful, challenge easy answers, and ask what they're leaving out." },
 ] as const;
 export type HomePreviewPersonaId = typeof HOME_PREVIEW_PERSONAS[number]["id"];
 
