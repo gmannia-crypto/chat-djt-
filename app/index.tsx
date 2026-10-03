@@ -779,9 +779,10 @@ export default function HomeScreen() {
   const MENU_TRACKS = [
     { src: "/server/assets/menu-prowling-dragon.mp3", name: "Prowling Dragon" },
     { src: "/server/assets/menu-allure.mp3", name: "Allure" },
-    { src: "/server/assets/menu-caleb-asher.mp3", name: "CalebAsher" },
     { src: "/server/assets/menu-swagg-attack.mp3", name: "Swagg Attack" },
-    { src: "/server/assets/menu-hyperflowing-cognition.mp3", name: "HyperFlowing Cognition" },
+    { src: "/server/assets/menu-zdragon.mp3", name: "Zdragon" },
+    { src: "/server/assets/menu-journey-through-stars.mp3", name: "Journey Through Stars" },
+    { src: "/server/assets/menu-numbers.mp3", name: "Numbers" },
   ];
   const [menuMusicPlaying, setMenuMusicPlaying] = useState(false);
   const [menuTrackName, setMenuTrackName] = useState("");
