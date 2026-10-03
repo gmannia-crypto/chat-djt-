@@ -2,7 +2,7 @@ import React, { useCallback, useRef, useState } from "react";
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
-import { HOME_PREVIEW_LIMIT, HOME_PREVIEW_PERSONAS, type HomePreviewPersonaId } from "@shared/home-persona-preview";
+import { HOME_PREVIEW_LIMIT, HOME_PREVIEW_PERSONAS, HOME_PREVIEW_IDEOLOGY, getHomePreviewMatchupOptions, getHomePreviewOpponents, type HomePreviewPersonaId } from "@shared/home-persona-preview";
 import { useHomePersonaPreview } from "@/hooks/useHomePersonaPreview";
 
 const PORTRAITS: Record<HomePreviewPersonaId, number> = {
@@ -12,7 +12,6 @@ const PORTRAITS: Record<HomePreviewPersonaId, number> = {
   kamala: require("@/assets/images/persona-kamala.png"),
   carville: require("@/assets/images/persona-carville.png"),
   galloway: require("@/assets/images/persona-galloway.png"),
-  malcolmx: require("@/assets/images/persona-malcolmx.jpg"),
   cornellwest: require("@/assets/images/persona-cornellwest.jpg"),
   maponga: require("@/assets/images/persona-maponga.png"),
   candace: require("@/assets/images/persona-candace.png"),
@@ -26,14 +25,7 @@ type Pair = { left: HomePreviewPersonaId; right: HomePreviewPersonaId };
 type Slot = "left" | "right";
 
 function createRandomPair(excludeKey?: string): Pair {
-  const options: Pair[] = [];
-  for (let first = 0; first < HOME_PREVIEW_PERSONAS.length; first += 1) {
-    for (let second = first + 1; second < HOME_PREVIEW_PERSONAS.length; second += 1) {
-      const left = HOME_PREVIEW_PERSONAS[first].id;
-      const right = HOME_PREVIEW_PERSONAS[second].id;
-      options.push({ left, right }, { left: right, right: left });
-    }
-  }
+  const options = getHomePreviewMatchupOptions();
   const eligible = options.filter((candidate) => pairKey(candidate) !== excludeKey);
   return eligible[Math.floor(Math.random() * eligible.length)];
 }
@@ -67,10 +59,11 @@ export function HomePersonaPreview() {
   };
 
   const rotateSlot = (slot: Slot) => {
+    if (preview.busy) return;
     stopBeforeChange();
     const opposingId = slot === "left" ? pair.right : pair.left;
-    const choices = HOME_PREVIEW_PERSONAS.filter((persona) => persona.id !== opposingId && persona.id !== pair[slot]);
-    const replacement = choices[Math.floor(Math.random() * choices.length)].id;
+    const choices = getHomePreviewOpponents(opposingId).filter((id) => id !== pair[slot]);
+    const replacement = choices[Math.floor(Math.random() * choices.length)];
     const next = { ...pair, [slot]: replacement };
     applyPair(next);
     seenPairs.current.add(pairKey(next));
@@ -97,18 +90,12 @@ export function HomePersonaPreview() {
   const shufflePair = () => {
     if (preview.busy) return;
     stopBeforeChange();
-    let available = HOME_PREVIEW_PERSONAS.flatMap((left) =>
-      HOME_PREVIEW_PERSONAS
-        .filter((right) => right.id !== left.id)
-        .map((right) => ({ left: left.id, right: right.id })),
-    ).filter((candidate) => !seenPairs.current.has(pairKey(candidate)));
+    let available = getHomePreviewMatchupOptions()
+      .filter((candidate) => !seenPairs.current.has(pairKey(candidate)));
     if (!available.length) {
       seenPairs.current = new Set([pairKey(pair)]);
-      available = HOME_PREVIEW_PERSONAS.flatMap((left) =>
-        HOME_PREVIEW_PERSONAS
-          .filter((right) => right.id !== left.id)
-          .map((right) => ({ left: left.id, right: right.id })),
-      ).filter((candidate) => !seenPairs.current.has(pairKey(candidate)));
+      available = getHomePreviewMatchupOptions()
+        .filter((candidate) => !seenPairs.current.has(pairKey(candidate)));
     }
     const next = available[Math.floor(Math.random() * available.length)];
     applyPair(next);
@@ -165,7 +152,7 @@ export function HomePersonaPreview() {
             <View style={styles.identityCopy}>
               <Text style={styles.slotLabel}>{slot === "left" ? "VOICE 01" : "VOICE 02"}{isFocused ? "  ·  IN FOCUS" : ""}</Text>
               <Text style={styles.personaName} numberOfLines={1}>{persona.name}</Text>
-              <Text style={styles.personaLine} numberOfLines={2}>Hear their case for why they belong in your next debate.</Text>
+              <Text style={styles.personaLine} numberOfLines={2}>{HOME_PREVIEW_IDEOLOGY[id]}</Text>
             </View>
           </View>
           <View style={styles.personaTools}>
@@ -238,14 +225,14 @@ export function HomePersonaPreview() {
             <View style={styles.eyebrowRule} />
             <Text style={styles.eyebrowSecondary}>REAL VOICES. YOUR CALL.</Text>
           </View>
-          <Text accessibilityRole="header" style={styles.title}>Two voices. One question.</Text>
+          <Text accessibilityRole="header" style={styles.title}>Opposing voices. Pick a side.</Text>
         </View>
         <Pressable
           onPress={shufflePair}
           disabled={preview.busy}
           style={({ pressed }) => [styles.shuffleButton, pressed && styles.pressed, preview.busy && styles.disabled]}
           accessibilityRole="button"
-          accessibilityLabel="Shuffle both preview voices"
+          accessibilityLabel="Shuffle an opposing ideological matchup"
           accessibilityState={{ disabled: preview.busy }}
           aria-disabled={preview.busy}
           testID="home-preview-shuffle"
@@ -267,7 +254,7 @@ export function HomePersonaPreview() {
           <Text style={styles.callInHint} testID="home-preview-name-instructions">
             Optional. Enter your name first, then pick a persona and tap Listen to hear them address you by name.
           </Text>
-          <Text style={styles.rosterHint}>{HOME_PREVIEW_PERSONAS.length} voices · Tap the list icon to choose, or shuffle to explore.</Text>
+          <Text style={styles.rosterHint}>{HOME_PREVIEW_PERSONAS.length} voices · Shuffle pits opposing views against each other. Tap the list icon to choose.</Text>
         </View>
         <TextInput
           value={name}

@@ -26,7 +26,7 @@ async function main() {
   });
   try {
     for (const body of [
-      {}, { personaId: "unknown" }, { personaId: "trump", name: [] },
+      {}, { personaId: "unknown" }, { personaId: "malcolmx" }, { personaId: "trump", name: [] },
       { personaId: "trump", name: "x".repeat(41) }, { personaId: "trump", name: "hello\nworld" },
       { personaId: "trump", name: "name<script>" },
     ]) assert.equal((await post(body)).status, 400);
