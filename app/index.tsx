@@ -783,6 +783,7 @@ export default function HomeScreen() {
     { src: "/server/assets/menu-zdragon.mp3", name: "Zdragon" },
     { src: "/server/assets/menu-journey-through-stars.mp3", name: "Journey Through Stars" },
     { src: "/server/assets/menu-numbers.mp3", name: "Numbers" },
+    { src: "/server/assets/menu-caleb-asher-latest.mp3", name: "Caleb Asher" },
   ];
   const [menuMusicPlaying, setMenuMusicPlaying] = useState(false);
   const [menuTrackName, setMenuTrackName] = useState("");
